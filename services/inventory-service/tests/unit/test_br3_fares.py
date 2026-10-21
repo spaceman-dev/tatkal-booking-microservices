@@ -1,5 +1,4 @@
-"""BR3 - Tatkal fare is computed on the server: base fare + class-specific
-Tatkal charge (percentage of base fare, clamped to a min/max)."""
+"""BR3: fare = base fare + Tatkal charge (class %, clamped to the class min/max)."""
 import pytest
 
 from app.domain.errors import RuleViolation

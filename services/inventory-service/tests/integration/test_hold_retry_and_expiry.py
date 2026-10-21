@@ -1,5 +1,3 @@
-"""Hold placement is idempotent per booking even when two requests for the same
-booking overlap, and the expiry safety net only ever releases stale HELD holds."""
 import threading
 import time
 import uuid
@@ -23,10 +21,9 @@ def available(engine, run_date):
             "AND travel_class='SL'"), {"d": run_date}).scalar_one()
 
 
-def test_overlapping_retry_for_the_same_booking_gets_the_same_hold(engine, fresh_run_date, monkeypatch):
-    """The booking-service client timed out and retried while the first attempt was
-    still inside its transaction. The retry must return the first attempt's hold,
-    not 409 SEATS_UNAVAILABLE for seats that this same booking already took."""
+def test_overlapping_retry_gets_same_hold(engine, fresh_run_date, monkeypatch):
+    # booking-service timed out and retried while attempt 1 was still in its transaction.
+    # The retry should just get attempt 1's hold back (no 409 for its own seats).
     CatalogService(engine).open_quota("12627", fresh_run_date, "SL", 2, 90_500)
     holds = HoldService(engine, FaultInjector())
     booking_id = uuid.uuid4()
@@ -38,7 +35,7 @@ def test_overlapping_retry_for_the_same_booking_gets_the_same_hold(engine, fresh
         result = original(conn, inventory_id, seat_count)
         if not first_inside.is_set():
             first_inside.set()
-            time.sleep(0.5)  # attempt 1 holds its locks, uncommitted, while the retry arrives
+            time.sleep(0.5)  # keep attempt 1's transaction open while the retry comes in
         return result
 
     monkeypatch.setattr(inventory_repo, "decrement_if_available", slow_first_decrement)
@@ -61,7 +58,7 @@ def test_overlapping_retry_for_the_same_booking_gets_the_same_hold(engine, fresh
     assert available(engine, fresh_run_date) == 0
 
 
-def test_expiry_releases_only_stale_held_holds_and_is_safe_to_run_twice(engine, fresh_run_date):
+def test_expiry_releases_only_stale_held_holds(engine, fresh_run_date):
     CatalogService(engine).open_quota("12627", fresh_run_date, "SL", 5, 90_500)
     holds = HoldService(engine, FaultInjector())
     stale, _ = holds.place_hold(uuid.uuid4(), "12627", fresh_run_date, "SL", 2)
@@ -75,10 +72,10 @@ def test_expiry_releases_only_stale_held_holds_and_is_safe_to_run_twice(engine, 
 
     expiry = HoldExpiry(engine, ttl_seconds=600, interval_seconds=30)
     assert expiry.run_once() == 1
-    assert expiry.run_once() == 0  # second run finds nothing more to do
+    assert expiry.run_once() == 0  # running it again finds nothing
 
     assert holds.get(stale["hold_id"])["status"] == "RELEASED"
     assert holds.get(stale["hold_id"])["release_reason"] == "HOLD_EXPIRED"
     assert holds.get(paid["hold_id"])["status"] == "CONFIRMED"   # paid seats are never released
     assert holds.get(fresh["hold_id"])["status"] == "HELD"       # younger than the TTL
-    assert available(engine, fresh_run_date) == 3                # 1 + the 2 stale seats, exactly once
+    assert available(engine, fresh_run_date) == 3                # 1 + the 2 stale seats, returned once

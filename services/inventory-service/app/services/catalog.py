@@ -1,4 +1,3 @@
-"""Train catalogue, availability and opening the Tatkal quota for a run."""
 import logging
 from datetime import date
 

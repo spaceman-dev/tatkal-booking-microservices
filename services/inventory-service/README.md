@@ -1,17 +1,13 @@
 # inventory-service
 
-Owns the train catalogue, fares and the Tatkal seat quota, and is the only service that can hold, confirm
-or release seats. Owner: Ratani Snehi Rajesh Darshana.
+Trains, fares and the Tatkal seat quota. The only service that can hold, confirm or release seats.
+Owner: Ratani Snehi Rajesh Darshana.
 
-- **Port** 8002, **database** `inventory_db` (user `inventory_svc`), tables `trains`, `seat_inventory`,
-  `seat_holds`.
-- `seat_holds.booking_id` is booking-service's id, stored as a plain UUID with a UNIQUE constraint (one
-  hold per booking) and no foreign key.
-- Business rules: BR1 (no over-allocation), BR3 (Tatkal fare).
+- Port 8002, database `inventory_db` (user `inventory_svc`), tables `trains`, `seat_inventory`, `seat_holds`.
+- `seat_holds.booking_id` is booking-service's id (unique, no foreign key).
+- BR1 (no over-allocation) and BR3 (Tatkal fare, `app/domain/fares.py`).
 
-## How overselling is prevented (BR1, Challenge 1)
-
-A hold takes seats with one statement that checks and decrements together:
+## Taking seats (BR1)
 
 ```sql
 UPDATE seat_inventory
@@ -20,41 +16,37 @@ UPDATE seat_inventory
 RETURNING available_seats
 ```
 
-PostgreSQL locks the row for the update; a concurrent request waits and then re-checks the `WHERE`
-clause against the committed value, so it matches no row once the seats are gone and gets
-`409 SEATS_UNAVAILABLE`. The hold row is inserted in the same transaction, just before the decrement,
-with `ON CONFLICT (booking_id) DO NOTHING`: a retried hold for the same booking waits for the first
-attempt's transaction and returns its hold instead of competing for the last seats.
-`CHECK (available_seats >= 0)` is only a safety net.
+Check and decrement are one statement. A concurrent hold waits for the row lock and re-checks the `WHERE`,
+so once the seats are gone it updates nothing and gets `409 SEATS_UNAVAILABLE`. The hold row is inserted
+first in the same transaction (`ON CONFLICT (booking_id) DO NOTHING`), so a retry for the same booking
+waits for the first attempt and gets its hold back. `CHECK (available_seats >= 0)` only catches bugs.
 
-## Holds nobody finishes
+`HOLD_STRATEGY=naive` swaps in a check-then-update version that oversells. Only for the race demo.
 
-The booking saga confirms or releases every hold within seconds, and booking-service's recovery job
-compensates sagas that die half way. As a last safety net, `services/expiry.py` releases holds that are
-still HELD after `HOLD_TTL_SECONDS` (10 minutes) and returns their seats, checking every
-`HOLD_SWEEP_INTERVAL_SECONDS`. It only touches HELD holds (never a paid, CONFIRMED one) and uses
-`FOR UPDATE SKIP LOCKED`, so it is safe with several replicas.
+## Hold expiry
 
-`HOLD_STRATEGY=naive` (or `PUT /api/v1/admin/hold-strategy`) switches to a check-then-update version that
-exists only so the Challenge 1 script can show the race. It is off by default.
+`app/services/expiry.py` releases holds still HELD after `HOLD_TTL_SECONDS` (600) and gives the seats back.
+CONFIRMED holds are never touched and `SKIP LOCKED` lets several replicas run it. A confirm after expiry
+gets `409 HOLD_NOT_ACTIVE` and the saga refunds.
 
 ## API
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/v1/trains` | catalogue |
-| GET | `/api/v1/trains/{train_no}/availability?journey_date=` | seats left and fare per class (BR3) |
-| POST | `/api/v1/inventory` | open a Tatkal quota for a train/date/class |
-| GET | `/api/v1/inventory?train_no=&journey_date=&travel_class=` | counters, incl. seats held/confirmed/released |
-| POST | `/api/v1/holds` | saga step 1; 201 new, 200 if the booking already has a hold, 409 sold out |
+| GET | `/api/v1/trains/{train_no}/availability?journey_date=` | seats left and fare per class |
+| POST | `/api/v1/inventory` | open a quota for a train/date/class |
+| GET | `/api/v1/inventory?train_no=&journey_date=&travel_class=` | counters incl. seats held/confirmed/released |
+| POST | `/api/v1/holds` | saga step 1: 201 new, 200 if the booking already has one, 409 sold out |
 | GET | `/api/v1/holds?booking_id=`, `/api/v1/holds/{id}` | look up a hold |
-| POST | `/api/v1/holds/{id}/confirm` | saga step 3 (HELD -> CONFIRMED) |
-| POST | `/api/v1/holds/{id}/release` | compensation / cancellation; gives seats back exactly once |
-| PUT/GET | `/api/v1/admin/hold-strategy` | dev only |
-| POST/GET/DELETE | `/api/v1/admin/faults` | dev only: make the next N calls of an operation fail |
-| GET | `/health` | includes a database check |
+| POST | `/api/v1/holds/{id}/confirm` | saga step 3 |
+| POST | `/api/v1/holds/{id}/release` | compensation or cancellation, safe to repeat |
+| PUT/GET | `/api/v1/admin/hold-strategy` | dev only: `atomic` or `naive` |
+| POST/GET/DELETE | `/api/v1/admin/faults` | dev only: fail the next N calls of an operation |
+| GET | `/health` | includes a DB check |
 
-Spec: [`docs/openapi/inventory-service.yaml`](../../docs/openapi/inventory-service.yaml).
+Admin routes only exist with `ADMIN_API_ENABLED=true`.
+Spec: [`docs/openapi/inventory-service.yaml`](../../docs/openapi/inventory-service.yaml)
 
 ## Run and test
 
@@ -63,5 +55,5 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 python -m app
-python -m pytest -v               # includes 20 threads racing for 5 seats against inventory_db
+python -m pytest -v    # integration tests (20 threads vs 5 seats) need the DB container
 ```

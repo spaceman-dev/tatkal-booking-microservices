@@ -1,4 +1,3 @@
-"""`python -m app` - starts the service on HOST:PORT taken from the environment."""
 import uvicorn
 
 from app.config import get_settings

@@ -1,15 +1,9 @@
-"""BR3 - the price of a Tatkal seat is always computed here, never taken from the client.
-
-Per-seat fare = base fare + Tatkal charge, where the Tatkal charge is a percentage
-of the base fare clamped to a minimum and maximum for the class. The table follows
-the published Indian Railways Tatkal charges (2S is 10 %, all other classes 30 %).
-All money is integer paise so there is no floating point anywhere.
-"""
+"""BR3: the Tatkal fare is computed here, never taken from the client. Money is integer paise."""
 from dataclasses import dataclass
 
 from app.domain.errors import RuleViolation
 
-# class -> (percent of base fare, minimum Rs, maximum Rs)
+# class -> (% of base fare, min Rs, max Rs), as per the Indian Railways Tatkal charges
 TATKAL_CHARGES: dict[str, tuple[int, int, int]] = {
     "2S": (10, 10, 15),
     "SL": (30, 100, 200),

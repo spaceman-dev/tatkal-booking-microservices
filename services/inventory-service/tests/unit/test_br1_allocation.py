@@ -1,6 +1,4 @@
-"""BR1 - no over-allocation. The pure parts of the rule: all-or-nothing allocation,
-seat-count limits and the hold state machine. The concurrent behaviour is tested
-against PostgreSQL in tests/integration/test_br1_concurrent_holds.py."""
+"""BR1 without a database. The concurrent part is in integration/test_br1_concurrent_holds.py."""
 import pytest
 
 from app.domain.allocation import (

@@ -1,5 +1,3 @@
-"""Seat holds: step 1 (hold), step 3 (confirm) and the compensation (release) of
-the booking saga. This is where the contended resource lives."""
 import logging
 import time
 import uuid
@@ -25,12 +23,11 @@ class HoldService:
         self.strategy = strategy
         self.naive_think_time_ms = naive_think_time_ms
 
-    # ---- step 1: hold ---------------------------------------------------------
+    # ---- step 1: hold ----
 
     def place_hold(self, booking_id: UUID, train_no: str, journey_date: date, travel_class: str,
                    seat_count: int) -> tuple[dict, bool]:
-        """Returns (hold, created). A repeat call for the same booking returns the
-        existing hold with created=False instead of taking seats again."""
+        # returns (hold, created), created is False if the booking already had a hold
         allocation.check_seat_request(seat_count)
         self.faults.maybe_fail("place_hold")
 
@@ -48,10 +45,10 @@ class HoldService:
                                f"No Tatkal quota found for train {train_no} on {journey_date} in {travel_class}")
             quote = fares.quote(travel_class, inv["base_fare_paise"], seat_count)
 
-            # 1) one hold per booking - a concurrent retry for the same booking waits here
+            # claim the booking first (another request for it may be inserting right now)
             created = repo.claim_hold(conn, hold_id, booking_id, inv["inventory_id"], seat_count,
                                       quote.fare_per_seat_paise, quote.total_amount_paise)
-            # 2) then take the seats; if there are not enough, the exception rolls back the hold row too
+            # then take the seats. Not enough seats raises, which rolls back the hold row too
             if created:
                 if self.strategy == "naive":
                     seats_left = self._take_seats_naive(conn, inv, seat_count)
@@ -76,13 +73,7 @@ class HoldService:
         return seats_left
 
     def _take_seats_naive(self, conn, inv: dict, seat_count: int) -> int:
-        """DEMO ONLY - kept to show *why* the atomic version exists (Challenge 1).
-
-        Read the counter, check it in Python, then write back `value - n`. Two
-        requests that read the same value both pass the check and both write; the
-        later write overwrites the earlier one (lost update) and the train is oversold.
-        The sleep stands in for the work a real handler does between read and write.
-        """
+        # only exists to demo the race (check-then-update, lost update), the sleep widens the window
         available = repo.read_available(conn, inv["inventory_id"])
         if not allocation.can_allocate(available, seat_count):
             raise self._seats_unavailable(inv, seat_count, available)
@@ -99,7 +90,7 @@ class HoldService:
             requested=requested, available=available,
         )
 
-    # ---- step 3: confirm (the saga's pivot) ----------------------------------
+    # ---- step 3: confirm ----
 
     def confirm(self, hold_id: UUID) -> dict:
         self.faults.maybe_fail("confirm_hold")
@@ -111,15 +102,15 @@ class HoldService:
             log.info("hold confirmed", extra={"hold_id": str(hold_id), "booking_id": str(hold["booking_id"])})
             return hold
         if hold["status"] == HoldStatus.CONFIRMED:
-            return hold  # repeat of a confirm that already happened
+            return hold  # repeated confirm, already done
         raise AppError(409, "HOLD_NOT_ACTIVE", "Hold is no longer active",
                        f"Hold {hold_id} is {hold['status']} and cannot be confirmed",
                        hold_status=hold["status"])
 
-    # ---- compensation / cancellation: release --------------------------------
+    # ---- release (compensation or cancellation) ----
 
     def release(self, hold_id: UUID, reason: str) -> dict:
-        """Gives the seats back exactly once, however many times it is called."""
+        # safe to repeat, seats only go back on the call that actually moves the hold to RELEASED
         self.faults.maybe_fail("release_hold")
         with self.engine.begin() as conn:
             changed = repo.set_hold_status(conn, hold_id, allocation.statuses_that_can_move_to(HoldStatus.RELEASED),
@@ -132,7 +123,7 @@ class HoldService:
                                              "seat_count": hold["seat_count"], "reason": reason})
         return hold
 
-    # ---- reads ----------------------------------------------------------------
+    # ---- reads ----
 
     def get(self, hold_id: UUID) -> dict | None:
         with self.engine.connect() as conn:

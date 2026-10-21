@@ -1,5 +1,4 @@
-"""Development-only endpoints used by the challenge scripts. The router is only
-mounted when ADMIN_API_ENABLED=true."""
+"""Dev-only routes for the demo scripts, mounted only when ADMIN_API_ENABLED=true."""
 from fastapi import APIRouter, Request, Response
 
 from app.api.schemas import FaultIn, HoldStrategyIn

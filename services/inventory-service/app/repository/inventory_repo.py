@@ -1,5 +1,3 @@
-"""Data access for inventory-service. Every function takes an open connection so
-the caller decides the transaction boundary."""
 from datetime import date
 from uuid import UUID
 
@@ -56,12 +54,10 @@ def insert_inventory(conn: Connection, train_no: str, journey_date: date, travel
     return dict(row)
 
 
-# --- BR1: the statement that makes overselling impossible ------------------------
-#
-# The availability check and the decrement are ONE statement. Postgres takes a row
-# lock for the UPDATE; a second transaction updating the same row waits, and when it
-# gets the lock it re-evaluates `available_seats >= :n` against the committed value.
-# So no matter how many requests race, at most `available_seats` seats are handed out.
+# BR1 / challenge 1: check and decrement in one statement.
+# A concurrent UPDATE on the same row waits for the row lock, then re-checks
+# available_seats >= :n against the committed value, so it matches nothing once seats run out.
+# TODO: hot row under heavy load (all holds for a train/date/class queue on this lock)
 _ATOMIC_DECREMENT = text(
     """
     UPDATE seat_inventory
@@ -76,7 +72,7 @@ _ATOMIC_DECREMENT = text(
 
 
 def decrement_if_available(conn: Connection, inventory_id: int, seat_count: int) -> int | None:
-    """Returns seats left after the decrement, or None if there were not enough."""
+    # seats left after the decrement, None if there weren't enough
     return conn.execute(_ATOMIC_DECREMENT, {"n": seat_count, "inventory_id": inventory_id}).scalar_one_or_none()
 
 
@@ -87,7 +83,7 @@ def read_available(conn: Connection, inventory_id: int) -> int:
 
 
 def overwrite_available(conn: Connection, inventory_id: int, new_value: int) -> None:
-    """Used only by the naive (demo) strategy - a blind write of a value computed in Python."""
+    # naive strategy only: blind write of a value computed in Python
     conn.execute(
         update(seat_inventory)
         .where(seat_inventory.c.inventory_id == inventory_id)
@@ -104,7 +100,7 @@ def increment_available(conn: Connection, inventory_id: int, seat_count: int) ->
     )
 
 
-# --- holds ---------------------------------------------------------------------
+# --- holds ---
 
 def _hold_query():
     return (
@@ -130,11 +126,8 @@ def get_hold_by_booking(conn: Connection, booking_id: UUID) -> dict | None:
 
 def claim_hold(conn: Connection, hold_id: UUID, booking_id: UUID, inventory_id: int, seat_count: int,
                fare_per_seat_paise: int, total_amount_paise: int) -> bool:
-    """Inserts the booking's hold row, or does nothing if the booking already has one.
-
-    Runs before the seats are taken, so the per-booking check comes first: a second
-    request for the same booking waits here for the first one's transaction (unique
-    index) and then sees its hold, instead of competing for the last seats."""
+    # False if the booking already has a hold. Runs before taking seats, so a retry for the
+    # same booking waits on the unique index for the first attempt and then finds its hold.
     row = conn.execute(
         pg_insert(seat_holds)
         .values(
@@ -154,8 +147,7 @@ def claim_hold(conn: Connection, hold_id: UUID, booking_id: UUID, inventory_id: 
 
 def set_hold_status(conn: Connection, hold_id: UUID, from_statuses: tuple[str, ...], to_status: str,
                     release_reason: str | None = None) -> dict | None:
-    """Conditional status change. Returns the updated row, or None if the hold was
-    not in one of `from_statuses` (someone else already moved it)."""
+    # None if the hold is no longer in from_statuses (someone else moved it first)
     values = {"status": to_status, "updated_at": func.now()}
     if release_reason is not None:
         values["release_reason"] = release_reason
@@ -177,9 +169,8 @@ def count_holds_by_status(conn: Connection, inventory_id: int) -> dict[str, int]
     return {status: int(seats) for status, _count, seats in rows}
 
 
-# Safety net: HELD holds nobody confirmed or released within the TTL. Only HELD rows
-# match, so a CONFIRMED (paid) hold is never touched, and SKIP LOCKED plus the status
-# condition make it safe to run twice or from several replicas at once.
+# holds still HELD after the TTL (paid CONFIRMED ones never match). SKIP LOCKED and the
+# status check let several sweeps run at once without giving seats back twice.
 _EXPIRE_HOLDS = text(
     """
     WITH expired AS (

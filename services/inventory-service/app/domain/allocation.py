@@ -1,10 +1,5 @@
-"""BR1 - seats are never over-allocated.
-
-The rule itself is simple (a request is granted only if every requested seat is
-available - no partial allocation). What makes it hard is enforcing it under
-concurrency; that part lives in the SQL of services/holds.py. This module keeps
-the pure parts that can be unit tested without a database.
-"""
+"""BR1 (no over-allocation), the parts that don't need a database.
+The concurrent part is the conditional UPDATE in repository/inventory_repo.py."""
 from app.domain.errors import RuleViolation
 
 MAX_SEATS_PER_HOLD = 6
@@ -32,7 +27,7 @@ def check_seat_request(seat_count: int) -> None:
 
 
 def can_allocate(available_seats: int, requested: int) -> bool:
-    """All-or-nothing: either every requested seat fits or the request is refused."""
+    # all or nothing, never a partial allocation
     return 0 < requested <= available_seats
 
 
@@ -41,6 +36,6 @@ def can_transition(current: str, new: str) -> bool:
 
 
 def statuses_that_can_move_to(target: str) -> tuple[str, ...]:
-    """E.g. RELEASED -> ('HELD', 'CONFIRMED'). Used to build the conditional UPDATEs,
-    so the SQL can never allow a transition that this table does not."""
+    # e.g. RELEASED -> ('CONFIRMED', 'HELD'). The hold UPDATEs filter on this,
+    # so the SQL can't allow a move that HOLD_TRANSITIONS doesn't.
     return tuple(sorted(s for s, targets in HOLD_TRANSITIONS.items() if target in targets))

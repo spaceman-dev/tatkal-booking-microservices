@@ -1,16 +1,5 @@
-"""Safety net for seat holds that nobody will ever confirm or release.
-
-The booking saga normally confirms or releases every hold within seconds, and its
-recovery job compensates sagas that die half way. A hold can still be left behind in
-rare cases - for example a hold request that reaches the database only after
-booking-service has given up on it and compensated. Such a hold would keep its seats
-forever, so holds still HELD after HOLD_TTL_SECONDS (10 minutes by default, far longer
-than any saga) are released here.
-
-Only HELD holds are touched, so a paid (CONFIRMED) hold is never released. If a saga
-were somehow still alive after the TTL, its confirm would get 409 HOLD_NOT_ACTIVE and
-the saga would refund the payment - the system stays consistent either way.
-"""
+"""Releases holds still HELD after HOLD_TTL_SECONDS, for the rare hold the saga never finished
+(like one that reached the DB after booking-service had already compensated)."""
 import logging
 import threading
 

@@ -1,6 +1,4 @@
-"""In-process fault injection, used by the Challenge 3 script to make a specific
-step fail on demand (e.g. "fail the next confirm"). Only reachable through the
-admin API, which is disabled unless ADMIN_API_ENABLED=true."""
+"""Fault injection: make the next N calls of an operation fail. Dev only, via the admin API."""
 import logging
 import threading
 

@@ -145,7 +145,7 @@ def confirm_hold(hold_id: UUID, holds: HoldService = Depends(hold_service)):
     response_model=HoldOut,
     tags=["holds"],
     summary="Release a hold (compensation or cancellation)",
-    description="HELD/CONFIRMED -> RELEASED and the seats go back to the quota exactly once. Safe to repeat.",
+    description="HELD/CONFIRMED -> RELEASED. Safe to repeat, the seats only go back to the quota once.",
     responses={404: {"description": "No such hold (HOLD_NOT_FOUND)"}},
 )
 def release_hold(hold_id: UUID, body: ReleaseIn | None = None, holds: HoldService = Depends(hold_service)):

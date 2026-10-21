@@ -11,15 +11,14 @@ from app.repository.tables import metadata
 
 @pytest.fixture(scope="session")
 def engine():
-    """Real PostgreSQL, but a throwaway schema per test run, so tests never touch the
-    tables the running service uses."""
+    # real Postgres, but a throwaway schema per run so we never touch the service's own tables
     url = get_settings().database_url
     schema = f"test_{uuid.uuid4().hex[:8]}"
     admin = create_engine(url, pool_size=1, max_overflow=0)
     try:
         with admin.begin() as conn:
             conn.execute(text(f'CREATE SCHEMA "{schema}"'))
-    except Exception as exc:  # pragma: no cover - depends on the machine
+    except Exception as exc:  # pragma: no cover
         pytest.skip(f"PostgreSQL for inventory-service is not reachable: {exc}")
     eng = create_engine(url, pool_size=25, max_overflow=10, connect_args={"options": f"-csearch_path={schema}"})
     metadata.create_all(eng)
@@ -36,5 +35,5 @@ def engine():
 
 @pytest.fixture
 def fresh_run_date():
-    """A far-future date nobody else uses, so every test gets its own quota row."""
+    # random far-future date, so each test gets its own quota row
     return date.today() + timedelta(days=random.randint(3_000, 30_000))

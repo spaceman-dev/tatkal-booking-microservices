@@ -1,6 +1,3 @@
-"""Demo data so a fresh setup has something to book. Safe to run on every start
-(and from several replicas at once) because every insert is ON CONFLICT DO NOTHING.
-Fares are illustrative, not the current IRCTC fare chart."""
 import logging
 from datetime import date, timedelta
 
@@ -12,6 +9,7 @@ from app.repository.tables import seat_inventory, trains
 log = logging.getLogger(__name__)
 
 # train_no, name, from, to, departs, {class: (tatkal seats, base fare in Rs)}
+# fares are approximate, not the current IRCTC chart
 DEMO_TRAINS = [
     ("12951", "Mumbai Central - New Delhi Rajdhani Express", "MMCT", "NDLS", "17:00",
      {"3A": (8, 2495), "2A": (4, 3515)}),

@@ -1,5 +1,4 @@
-"""BR1 under real concurrency: 20 threads race for a quota of 5 seats through the
-HoldService and PostgreSQL (no HTTP in between, so only the DB logic is tested)."""
+"""BR1: 20 threads race for 5 seats through HoldService and real Postgres (no HTTP)."""
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -24,7 +23,7 @@ def _race(engine, run_date, strategy):
     start_line = Barrier(REQUESTS)
 
     def attempt(_):
-        start_line.wait()  # release all threads at the same instant
+        start_line.wait()  # all threads go at once
         try:
             holds.place_hold(uuid.uuid4(), "12627", run_date, "SL", 1)
             return "ok"
@@ -56,8 +55,7 @@ def test_br1_atomic_hold_never_oversells(engine, fresh_run_date):
 
 
 def test_naive_check_then_update_oversells(engine, fresh_run_date):
-    """Documents the bug the atomic version prevents. If this ever starts failing,
-    the demo strategy has stopped demonstrating the race."""
+    # the bug the atomic version fixes. If this starts failing, the naive demo no longer shows the race.
     outcomes, available, held = _race(engine, fresh_run_date, "naive")
 
     assert outcomes.count("ok") > CAPACITY

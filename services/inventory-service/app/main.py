@@ -22,12 +22,10 @@ from app.services.seed import seed_demo_data
 log = logging.getLogger(__name__)
 
 DESCRIPTION = """
-Owns the train catalogue, fares and the **Tatkal seat quota**, and is the only
-service that can hold, confirm or release seats.
+Trains, fares and the Tatkal seat quota. The only service that can hold, confirm or release seats.
 
-* Contended resource: `seat_inventory.available_seats` for a train/date/class.
-* BR1 (no over-allocation) is enforced by a single conditional `UPDATE`.
-* BR3 (server-side Tatkal fare) is computed in `app/domain/fares.py`.
+* BR1 (no over-allocation): one conditional `UPDATE` on `seat_inventory.available_seats`.
+* BR3 (Tatkal fare): computed on the server in `app/domain/fares.py`.
 """
 
 

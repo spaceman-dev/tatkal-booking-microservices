@@ -1,9 +1,3 @@
-"""Schema owned by inventory-service. Nothing outside this service reads these tables.
-
-Foreign keys only point at tables inside this same database. Other services'
-entities (bookings) are referenced by id only - `seat_holds.booking_id` is a
-plain UUID column with a UNIQUE constraint, not a foreign key.
-"""
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -48,8 +42,7 @@ seat_inventory = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     UniqueConstraint("train_no", "journey_date", "travel_class", name="uq_inventory_train_date_class"),
     CheckConstraint("total_seats > 0", name="ck_inventory_total_positive"),
-    # Safety net for BR1. The atomic UPDATE is what actually prevents overselling;
-    # this constraint makes sure a bug can never push the counter below zero.
+    # safety net for BR1, the conditional UPDATE is what actually stops overselling
     CheckConstraint("available_seats >= 0", name="ck_inventory_available_non_negative"),
     CheckConstraint("available_seats <= total_seats", name="ck_inventory_available_within_total"),
 )
@@ -58,7 +51,8 @@ seat_holds = Table(
     "seat_holds",
     metadata,
     Column("hold_id", Uuid, primary_key=True),
-    # One hold per booking. Makes POST /holds safe to retry from the saga.
+    # booking-service's id, no FK since bookings live in another database.
+    # Unique: one hold per booking, so the saga can retry POST /holds.
     Column("booking_id", Uuid, nullable=False),
     Column("inventory_id", BigInteger, ForeignKey("seat_inventory.inventory_id"), nullable=False),
     Column("seat_count", Integer, nullable=False),

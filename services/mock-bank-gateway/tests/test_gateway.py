@@ -58,6 +58,15 @@ def test_down_mode_processes_nothing(client):
     assert client.get("/gateway/v1/stats").json()["charges_created"] == 0
 
 
+def test_partial_outage_can_hit_refunds_only(client):
+    client.put("/gateway/v1/admin/mode", json={"mode": "down", "affects": ["refund"]})
+    charge = client.post("/gateway/v1/charges", json=CHARGE, headers={"Idempotency-Key": "k5"})
+    refund = client.post("/gateway/v1/refunds", json={"charge_id": charge.json()["charge_id"], "amount_paise": 1},
+                         headers={"Idempotency-Key": "r5"})
+    assert charge.status_code == 200 and charge.json()["status"] == "captured"
+    assert refund.status_code == 503
+
+
 def test_refund_only_once_and_never_more_than_charged(client):
     charge = client.post("/gateway/v1/charges", json=CHARGE, headers={"Idempotency-Key": "k4"}).json()
     body = {"charge_id": charge["charge_id"], "amount_paise": charge["amount_paise"]}

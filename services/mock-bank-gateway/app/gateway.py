@@ -30,6 +30,7 @@ class Gateway:
         self.latency_ms = latency_ms
         self.slow_latency_ms = slow_latency_ms
         self.failure_rate = failure_rate
+        self.affects = {"charge", "refund"}  # which operations "down"/"flaky" apply to
         self.reset()
 
     def reset(self) -> None:
@@ -46,10 +47,10 @@ class Gateway:
 
     def config(self) -> dict:
         return {"mode": self.mode, "latency_ms": self.latency_ms, "slow_latency_ms": self.slow_latency_ms,
-                "failure_rate": self.failure_rate}
+                "failure_rate": self.failure_rate, "affects": sorted(self.affects)}
 
     def configure(self, mode: str, latency_ms: int | None, slow_latency_ms: int | None,
-                  failure_rate: float | None) -> dict:
+                  failure_rate: float | None, affects: list[str] | None = None) -> dict:
         self.mode = mode
         if latency_ms is not None:
             self.latency_ms = latency_ms
@@ -57,10 +58,13 @@ class Gateway:
             self.slow_latency_ms = slow_latency_ms
         if failure_rate is not None:
             self.failure_rate = failure_rate
+        self.affects = set(affects) if affects else {"charge", "refund"}
         log.warning("gateway behaviour changed", extra=self.config())
         return self.config()
 
     def _reject_if_unavailable(self, operation: str) -> None:
+        if operation not in self.affects:
+            return
         if self.mode == "down" or (self.mode == "flaky" and random.random() < self.failure_rate):
             self.stats[f"{operation}_rejected_unavailable"] += 1
             log.warning("simulated outage, rejecting %s", operation, extra={"mode": self.mode})

@@ -42,12 +42,15 @@ class RefundIn(BaseModel):
 
 
 class ModeIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"examples": [
+        {"mode": "down"}, {"mode": "slow", "slow_latency_ms": 3000}, {"mode": "down", "affects": ["refund"]}]})
 
     mode: Mode
     latency_ms: int | None = Field(default=None, ge=0, le=60_000)
     slow_latency_ms: int | None = Field(default=None, ge=0, le=120_000)
     failure_rate: float | None = Field(default=None, ge=0, le=1)
+    affects: list[Literal["charge", "refund"]] | None = Field(
+        default=None, description="Operations hit by down/flaky (default both) - e.g. only refunds failing")
 
 
 def _require_key(key: str | None) -> str:
@@ -122,7 +125,7 @@ def get_mode(request: Request):
 
 @router.put("/gateway/v1/admin/mode", tags=["test support"], summary="Switch normal/slow/down/flaky")
 def set_mode(body: ModeIn, request: Request):
-    return gw(request).configure(body.mode, body.latency_ms, body.slow_latency_ms, body.failure_rate)
+    return gw(request).configure(body.mode, body.latency_ms, body.slow_latency_ms, body.failure_rate, body.affects)
 
 
 @router.post("/gateway/v1/admin/reset", tags=["test support"], status_code=204)

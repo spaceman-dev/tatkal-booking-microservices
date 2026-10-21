@@ -1,0 +1,4 @@
+# Tooling for scripts/ and tests/e2e (installed into ./.venv by `python scripts/stack.py setup`)
+httpx==0.28.1
+psycopg[binary]==3.3.6
+pytest==9.1.1

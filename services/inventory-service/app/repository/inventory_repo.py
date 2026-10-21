@@ -4,6 +4,7 @@ from datetime import date
 from uuid import UUID
 
 from sqlalchemy import func, insert, select, text, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Connection
 
 from app.repository.tables import seat_holds, seat_inventory, trains
@@ -127,10 +128,16 @@ def get_hold_by_booking(conn: Connection, booking_id: UUID) -> dict | None:
     return dict(row) if row else None
 
 
-def insert_hold(conn: Connection, hold_id: UUID, booking_id: UUID, inventory_id: int, seat_count: int,
-                fare_per_seat_paise: int, total_amount_paise: int) -> None:
-    conn.execute(
-        insert(seat_holds).values(
+def claim_hold(conn: Connection, hold_id: UUID, booking_id: UUID, inventory_id: int, seat_count: int,
+               fare_per_seat_paise: int, total_amount_paise: int) -> bool:
+    """Inserts the booking's hold row, or does nothing if the booking already has one.
+
+    Runs before the seats are taken, so the per-booking check comes first: a second
+    request for the same booking waits here for the first one's transaction (unique
+    index) and then sees its hold, instead of competing for the last seats."""
+    row = conn.execute(
+        pg_insert(seat_holds)
+        .values(
             hold_id=hold_id,
             booking_id=booking_id,
             inventory_id=inventory_id,
@@ -139,7 +146,10 @@ def insert_hold(conn: Connection, hold_id: UUID, booking_id: UUID, inventory_id:
             total_amount_paise=total_amount_paise,
             status="HELD",
         )
-    )
+        .on_conflict_do_nothing(index_elements=[seat_holds.c.booking_id])
+        .returning(seat_holds.c.hold_id)
+    ).first()
+    return row is not None
 
 
 def set_hold_status(conn: Connection, hold_id: UUID, from_statuses: tuple[str, ...], to_status: str,
@@ -165,3 +175,28 @@ def count_holds_by_status(conn: Connection, inventory_id: int) -> dict[str, int]
         .group_by(seat_holds.c.status)
     ).all()
     return {status: int(seats) for status, _count, seats in rows}
+
+
+# Safety net: HELD holds nobody confirmed or released within the TTL. Only HELD rows
+# match, so a CONFIRMED (paid) hold is never touched, and SKIP LOCKED plus the status
+# condition make it safe to run twice or from several replicas at once.
+_EXPIRE_HOLDS = text(
+    """
+    WITH expired AS (
+        SELECT hold_id FROM seat_holds
+         WHERE status = 'HELD' AND created_at < now() - make_interval(secs => :ttl)
+         ORDER BY created_at
+         LIMIT :limit
+         FOR UPDATE SKIP LOCKED)
+    UPDATE seat_holds h
+       SET status = 'RELEASED', release_reason = 'HOLD_EXPIRED', updated_at = now()
+      FROM expired
+     WHERE h.hold_id = expired.hold_id
+    RETURNING h.hold_id, h.booking_id, h.inventory_id, h.seat_count
+    """
+)
+
+
+def expire_stale_holds(conn: Connection, ttl_seconds: int, limit: int = 100) -> list[dict]:
+    rows = conn.execute(_EXPIRE_HOLDS, {"ttl": ttl_seconds, "limit": limit}).mappings().all()
+    return [dict(r) for r in rows]

@@ -14,6 +14,7 @@ from app.core.middleware import CorrelationIdMiddleware
 from app.core.openapi import install_problem_openapi
 from app.repository.tables import metadata
 from app.services.catalog import CatalogService
+from app.services.expiry import HoldExpiry
 from app.services.faults import FaultInjector
 from app.services.holds import HoldService
 from app.services.seed import seed_demo_data
@@ -41,9 +42,13 @@ def create_app() -> FastAPI:
         metadata.create_all(engine)
         if settings.seed_demo_data:
             seed_demo_data(engine, settings.seed_days)
+        if settings.hold_expiry_enabled:
+            app.state.expiry.start()
         log.info("service ready", extra={"port": settings.port, "hold_strategy": settings.hold_strategy,
-                                         "admin_api": settings.admin_api_enabled})
+                                         "admin_api": settings.admin_api_enabled,
+                                         "hold_ttl_seconds": settings.hold_ttl_seconds})
         yield
+        app.state.expiry.stop()
         engine.dispose()
 
     app = FastAPI(
@@ -63,6 +68,7 @@ def create_app() -> FastAPI:
     app.state.faults = FaultInjector()
     app.state.holds = HoldService(engine, app.state.faults, settings.hold_strategy, settings.naive_think_time_ms)
     app.state.catalog = CatalogService(engine)
+    app.state.expiry = HoldExpiry(engine, settings.hold_ttl_seconds, settings.hold_sweep_interval_seconds)
 
     app.add_middleware(CorrelationIdMiddleware)
     install_error_handlers(app)

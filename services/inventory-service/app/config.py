@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     hold_strategy: Literal["atomic", "naive"] = "atomic"
     naive_think_time_ms: int = 150
 
+    # Safety net: release holds still HELD after this long (see services/expiry.py)
+    hold_expiry_enabled: bool = True
+    hold_ttl_seconds: int = 600
+    hold_sweep_interval_seconds: float = 30
+
 
 @lru_cache
 def get_settings() -> Settings:

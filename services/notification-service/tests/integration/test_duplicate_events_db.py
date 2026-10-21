@@ -1,6 +1,9 @@
 """The idempotent-consumer guarantee against the real database: the same event
-delivered many times (even at once) produces exactly one message per channel."""
+delivered many times (even at once, or after a partial failure) produces exactly
+one message per channel."""
+import threading
 import uuid
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
@@ -11,7 +14,7 @@ from app.config import get_settings
 from app.core.errors import AppError
 from app.repository.tables import metadata
 from app.services.notifications import NotificationService
-from app.services.provider import SimulatedProvider
+from app.services.provider import ProviderUnavailable, SimulatedProvider
 
 pytestmark = pytest.mark.integration
 
@@ -40,6 +43,35 @@ def engine():
     admin.dispose()
 
 
+class RecordingProvider(SimulatedProvider):
+    """Counts what really went out; can be told to fail a channel a number of times."""
+
+    def __init__(self, latency_ms=0):
+        super().__init__(failure_rate=0, latency_ms=latency_ms)
+        self.sent = Counter()
+        self.fail = Counter()
+        self._lock = threading.Lock()
+
+    def send(self, channel, recipient, message):
+        with self._lock:
+            if self.fail[channel] > 0:
+                self.fail[channel] -= 1
+                raise ProviderUnavailable(f"{channel} provider did not accept the message")
+        super().send(channel, recipient, message)
+        with self._lock:
+            self.sent[channel] += 1
+
+
+def claim_row(engine, event_id, booking_id, channel, lease_ends_in_seconds):
+    """A PENDING row as left by another delivery (still sending, or dead if the lease is over)."""
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO notifications (notification_id, event_id, event_type, booking_id, channel, recipient, "
+            "message, status, claim_token, locked_until) VALUES (:n, :e, 'BOOKING_CONFIRMED', :b, :c, "
+            "'9876543210', 'msg', 'PENDING', 'someone-else', now() + make_interval(secs => :s))"),
+            {"n": uuid.uuid4(), "e": event_id, "b": booking_id, "c": channel, "s": lease_ends_in_seconds})
+
+
 def count(engine, event_id):
     with engine.connect() as conn:
         return conn.execute(text("SELECT count(*) FROM notifications WHERE event_id = :e"),
@@ -47,7 +79,8 @@ def count(engine, event_id):
 
 
 def test_duplicate_events_send_one_message_per_channel(engine):
-    service = NotificationService(engine, SimulatedProvider(failure_rate=0, latency_ms=50))
+    provider = RecordingProvider(latency_ms=50)
+    service = NotificationService(engine, provider)
     event_id, booking_id = str(uuid.uuid4()), uuid.uuid4()
     start_line = Barrier(8)
 
@@ -60,8 +93,9 @@ def test_duplicate_events_send_one_message_per_channel(engine):
         statuses = list(pool.map(deliver, range(8)))
 
     assert statuses.count(201) == 1
-    assert statuses.count(200) == 7
+    assert statuses.count(200) == 7  # the duplicates waited for the first delivery, then got "duplicate"
     assert count(engine, event_id) == 2  # one SMS + one e-mail
+    assert provider.sent == {"SMS": 1, "EMAIL": 1}
 
 
 def test_provider_failure_records_nothing_so_a_retry_can_send(engine):
@@ -77,3 +111,47 @@ def test_provider_failure_records_nothing_so_a_retry_can_send(engine):
     provider.failure_rate = 0.0
     assert service.publish(event_id, "BOOKING_CONFIRMED", booking_id, "9876543210", None, DATA)[0] == 201
     assert count(engine, event_id) == 1
+
+
+def test_retry_after_a_partial_failure_sends_only_what_is_missing(engine):
+    provider = RecordingProvider()
+    provider.fail["EMAIL"] = 1  # the SMS goes out, then the e-mail provider fails
+    service = NotificationService(engine, provider)
+    event_id, booking_id = str(uuid.uuid4()), uuid.uuid4()
+
+    with pytest.raises(AppError) as err:
+        service.publish(event_id, "BOOKING_CONFIRMED", booking_id, "9876543210", "asha@example.com", DATA)
+    status_code, body = service.publish(event_id, "BOOKING_CONFIRMED", booking_id, "9876543210",
+                                        "asha@example.com", DATA)
+
+    assert err.value.code == "PROVIDER_UNAVAILABLE"
+    assert status_code == 201 and not body["duplicate"]
+    assert provider.sent == {"SMS": 1, "EMAIL": 1}  # the SMS was not sent a second time
+    assert [d["status"] for d in body["deliveries"]] == ["SENT", "SENT"]
+
+
+def test_event_still_being_sent_elsewhere_is_not_reported_as_done(engine):
+    provider = RecordingProvider()
+    service = NotificationService(engine, provider, wait_seconds=0.3, poll_seconds=0.05)
+    event_id, booking_id = str(uuid.uuid4()), uuid.uuid4()
+    claim_row(engine, event_id, booking_id, "SMS", lease_ends_in_seconds=30)
+
+    with pytest.raises(AppError) as err:
+        service.publish(event_id, "BOOKING_CONFIRMED", booking_id, "9876543210", None, DATA)
+
+    # Previously this was answered "200 duplicate" and the outbox stopped retrying.
+    assert (err.value.status, err.value.code) == (503, "NOTIFICATION_IN_PROGRESS")
+    assert provider.sent == {}
+
+
+def test_claim_left_by_a_delivery_that_died_is_taken_over(engine):
+    provider = RecordingProvider()
+    service = NotificationService(engine, provider)
+    event_id, booking_id = str(uuid.uuid4()), uuid.uuid4()
+    claim_row(engine, event_id, booking_id, "SMS", lease_ends_in_seconds=-1)
+
+    status_code, body = service.publish(event_id, "BOOKING_CONFIRMED", booking_id, "9876543210", None, DATA)
+
+    assert status_code == 201
+    assert provider.sent == {"SMS": 1}
+    assert [d["status"] for d in body["deliveries"]] == ["SENT"]

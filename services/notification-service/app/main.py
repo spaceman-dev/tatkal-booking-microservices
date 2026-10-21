@@ -44,7 +44,8 @@ def create_app() -> FastAPI:
     app.state.settings = settings
     app.state.engine = engine
     app.state.provider = provider
-    app.state.notifications = NotificationService(engine, provider)
+    app.state.notifications = NotificationService(engine, provider, settings.claim_lease_seconds,
+                                                   settings.duplicate_wait_seconds)
 
     app.add_middleware(CorrelationIdMiddleware)
     install_error_handlers(app)

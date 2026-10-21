@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     provider_failure_rate: float = 0.0
     provider_latency_ms: int = 30
 
+    # Duplicate deliveries: how long a claimed message stays reserved for the delivery
+    # sending it, and how long a duplicate waits for that delivery to finish
+    claim_lease_seconds: float = 30
+    duplicate_wait_seconds: float = 2.0
+
     admin_api_enabled: bool = False
 
 

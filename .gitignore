@@ -17,3 +17,6 @@ logs/
 .DS_Store
 .idea/
 .vscode/
+
+# Report build scratch
+docs/report/build/

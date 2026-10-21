@@ -159,6 +159,8 @@ With the stack running and the tooling venv active:
 | `python scripts/challenge1_concurrency.py --strategy both` | 1. Concurrency | 20 parallel bookings for 5 seats: the naive check-then-update oversells, the real code confirms exactly 5 and rejects 15 with 409 |
 | `python scripts/challenge2_idempotency.py` | 2. Idempotency | sequential, failed, mismatched and 10 simultaneous repeats of one key; one booking, one charge |
 | `python scripts/challenge3_saga.py` | 3C. Saga with compensation | failure forced at step 3 is undone (refund, then release); a failed compensation is finished by the recovery job (waits ~30 s) |
+| `python scripts/bank_failure_modes.py` | condition (e) | one booking each with the bank normal, slow, down and flaky: one capture at most, seats released on failure |
+| `python scripts/check_db_isolation.py` | database per service | every service's credentials against every database; only its own connects |
 
 Each script prints its result and saves a timestamped copy under `evidence/`. Useful options:
 `--capacity`, `--requests`, `--seats` (challenge 1) and `--skip-recovery` (challenge 3).

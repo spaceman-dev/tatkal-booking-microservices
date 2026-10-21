@@ -2,30 +2,27 @@ sequenceDiagram
     autonumber
     actor C as Client
     participant B as booking-service
-    participant BD as booking_db
     participant I as inventory-service
     participant P as payment-service
     participant G as mock-bank-gateway
     participant N as notification-service
 
     C->>B: POST /api/v1/bookings  [Idempotency-Key: K]
-    B->>BD: claim K (INSERT ... ON CONFLICT DO NOTHING)
-    B->>BD: INSERT booking PENDING + passengers
-    B->>I: POST /api/v1/holds {booking_id, seat_count}
-    Note right of I: one conditional UPDATE takes the seats (BR1)<br/>price computed here (BR3)
-    I-->>B: 201 hold HELD, total_amount_paise
-    B->>BD: PENDING -> SEATS_HELD
-    B->>P: POST /api/v1/payments  [Idempotency-Key: booking-{id}]
-    P->>G: POST /gateway/v1/charges  [Idempotency-Key: pay-{id}]
+    Note over B: claim K, INSERT booking PENDING
+    B->>I: 1. POST /api/v1/holds
+    Note over I: one conditional UPDATE takes the seats (BR1)<br/>price computed here (BR3)
+    I-->>B: 201 HELD, total_amount_paise
+    Note over B: PENDING -> SEATS_HELD
+    B->>P: 2. POST /api/v1/payments  [Idempotency-Key: booking-{id}]
+    P->>G: POST /gateway/v1/charges  [key: pay-{id}]
     G-->>P: 200 captured
     P-->>B: 201 CAPTURED
-    B->>BD: SEATS_HELD -> PAYMENT_DONE
-    B->>I: POST /api/v1/holds/{hold_id}/confirm
+    Note over B: SEATS_HELD -> PAYMENT_DONE
+    B->>I: 3. POST /api/v1/holds/{id}/confirm
     I-->>B: 200 CONFIRMED
-    B->>BD: PAYMENT_DONE -> CONFIRMED, PNR, outbox event (one transaction)
-    B->>BD: store status + body against K
+    Note over B: PAYMENT_DONE -> CONFIRMED, PNR, outbox event<br/>(one transaction), response stored for K
     B-->>C: 201 Created {status: CONFIRMED, pnr}
 
     Note over B,N: asynchronously, a few seconds later
-    B->>N: POST /api/v1/notifications {event_id}  (outbox dispatcher)
+    B->>N: 4. POST /api/v1/notifications {event_id}  (outbox dispatcher)
     N-->>B: 201 SMS + e-mail sent

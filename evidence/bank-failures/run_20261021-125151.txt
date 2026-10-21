@@ -1,0 +1,33 @@
+====================================================================================================
+CONDITION (e) - SLOW OR FAILING BANK GATEWAY
+command : python scripts/bank_failure_modes.py
+run at  : 2026-10-21 12:51:51 IST (UTC+0530)   |   UTC 2026-10-21 07:21:51
+git     : 82f68a1
+====================================================================================================
+quota: 12009 / 2063-12-30 / CC, 20 seats. payment-service: 2 s timeout per attempt, 3 attempts, backoff with full jitter
+
+--- one booking per bank behaviour -----------------------------------------------------------------
+  bank mode | http | outcome             | booking   | payment  | attempts | seat hold | bank captures | seconds
+  ----------+------+---------------------+-----------+----------+----------+-----------+---------------+--------
+  normal    | 201  | CONFIRMED           | CONFIRMED | CAPTURED | 1        | CONFIRMED | 1             | 0.15   
+  slow 3 s  | 201  | CONFIRMED           | CONFIRMED | CAPTURED | 2        | CONFIRMED | 1             | 3.11   
+  down      | 503  | PAYMENT_UNAVAILABLE | FAILED    | FAILED   | 3        | RELEASED  | 0             | 0.4    
+  flaky 60% | 201  | CONFIRMED           | CONFIRMED | CAPTURED | 3        | CONFIRMED | 1             | 0.66   
+  flaky 60% | 201  | CONFIRMED           | CONFIRMED | CAPTURED | 3        | CONFIRMED | 1             | 0.67   
+  flaky 60% | 201  | CONFIRMED           | CONFIRMED | CAPTURED | 2        | CONFIRMED | 1             | 0.31   
+  flaky 60% | 201  | CONFIRMED           | CONFIRMED | CAPTURED | 3        | CONFIRMED | 1             | 0.27   
+
+--- what this shows --------------------------------------------------------------------------------
+  normal : one attempt, captured, confirmed.
+  slow   : the 1st attempt times out after 2 s; the retry carries the same key, waits for the bank's
+           first (still running) request and gets its result - captured ONCE over two attempts.
+  down   : every attempt gets 503; nothing was taken, so the booking fails fast and the seats are released.
+  flaky  : 503s are retried with backoff; a booking either succeeds (one capture) or fails with its seats
+           released. No booking is ever captured twice.
+
+--- result -----------------------------------------------------------------------------------------
+  [PASS] normal: confirmed in one attempt
+  [PASS] slow: confirmed after a retry, captured exactly once
+  [PASS] down: 503 PAYMENT_UNAVAILABLE, payment FAILED, seats released
+  [PASS] flaky: no booking captured more than once
+  [PASS] every failed booking released its seats

@@ -12,7 +12,7 @@ the services wrote them) are saved next to the output they belong to.
 | [challenge-3c-saga](challenge-3c-saga) | A failure forced at step 3 is undone by refunding the payment (step 2) and releasing the seats (step 1); a compensation that fails is finished later by the recovery job. | `run_*.txt`, `trace_step3_failure_*.jsonl`, `recovery_job_*.jsonl` |
 | [bank-failures](bank-failures) | Condition (e): with the bank slow, down or flaky, bookings either succeed with exactly one capture or fail cleanly with their seats released. | `run_*.txt` |
 | [database-per-service](database-per-service) | Each service's database only accepts that service's credentials. | `isolation_*.txt` |
-| [tests](tests) | 110 unit/integration tests across the five services and 7 end-to-end tests pass. | `service-tests_*.txt`, `e2e_*.txt` |
+| [tests](tests) | 132 unit/integration tests across the five services and 7 end-to-end tests pass. | `service-tests_*.txt`, `e2e_*.txt` |
 
 ## Re-running
 

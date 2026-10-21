@@ -5,7 +5,7 @@ any other service's database.
 
 | File | What it proves |
 |---|---|
-| [`isolation_20261021-124246.txt`](isolation_20261021-124246.txt) | Output of `python scripts/check_db_isolation.py`: every service's credentials tried against every database. Only the diagonal (own database) connects; the other 12 attempts fail with `password authentication failed`. |
+| [`isolation_20261021-135009.txt`](isolation_20261021-135009.txt) | Output of `python scripts/check_db_isolation.py`: every service's credentials tried against every database. Only the diagonal (own database) connects; the other 12 attempts fail with `password authentication failed`. |
 
 The databases are four separate PostgreSQL containers (`docker-compose.db.yml`), i.e. physical
 separation. There are no cross-service foreign keys: other services' entities are kept as plain ids

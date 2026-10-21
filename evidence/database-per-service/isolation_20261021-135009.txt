@@ -1,8 +1,8 @@
 ====================================================================================================
 DATABASE PER SERVICE - CREDENTIAL ISOLATION CHECK
 command : python scripts/check_db_isolation.py
-run at  : 2026-10-21 12:42:46 IST (UTC+0530)   |   UTC 2026-10-21 07:12:46
-git     : e409cd6
+run at  : 2026-10-21 13:50:09 IST (UTC+0530)   |   UTC 2026-10-21 08:20:09
+git     : 94b67d0
 ====================================================================================================
 Each service's database runs in its own PostgreSQL container (docker-compose.db.yml) with its
 own user and password. Rows: credentials used. Columns: database tried.

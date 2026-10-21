@@ -9,7 +9,7 @@ jitter, always reusing the same gateway idempotency key
 
 | File | What it proves |
 |---|---|
-| [`run_20261021-125151.txt`](run_20261021-125151.txt) | Output of `python scripts/bank_failure_modes.py`, one booking per bank behaviour, all checks PASS. **slow (3 s)**: the first attempt timed out, the retry got the bank's result - CONFIRMED after 3.1 s with 2 attempts and exactly 1 capture at the bank. **down**: 503 `PAYMENT_UNAVAILABLE` after 0.4 s (3 quick attempts), payment FAILED, seats RELEASED, nothing captured. **flaky (60 % of calls fail)**: retries succeeded on attempt 2 or 3; every booking captured exactly once. |
+| [`run_20261021-135112.txt`](run_20261021-135112.txt) | Output of `python scripts/bank_failure_modes.py`, one booking per bank behaviour, all checks PASS. **slow (3 s)**: the first attempt timed out, the retry got the bank's result - CONFIRMED after 3.1 s with 2 attempts and exactly 1 capture at the bank. **down**: 503 `PAYMENT_UNAVAILABLE` after 0.4 s (3 quick attempts), payment FAILED, seats RELEASED, nothing captured. **flaky (60 % of calls fail)**: three of four bookings confirmed (one after a retry), one failed after 3 attempts with 503 `PAYMENT_UNAVAILABLE` and its seats released; no booking captured more than once. |
 
 This is the behaviour Challenge 3C relies on: a failure the bank reports clearly ("down", "declined")
 only needs the seats released, while an unanswered request is treated as "may have been charged" and

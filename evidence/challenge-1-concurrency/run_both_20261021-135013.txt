@@ -1,33 +1,33 @@
 ====================================================================================================
 CHALLENGE 1 - CONCURRENCY CONTROL
 command : python scripts/challenge1_concurrency.py --strategy both
-run at  : 2026-10-21 12:42:46 IST (UTC+0530)   |   UTC 2026-10-21 07:12:46
-git     : e409cd6
+run at  : 2026-10-21 13:50:13 IST (UTC+0530)   |   UTC 2026-10-21 08:20:13
+git     : 94b67d0
 ====================================================================================================
 
---- strategy=naive: 20 parallel bookings of 1 seat(s) against a quota of 5 on 12627 / 2029-04-16 / SL 
+--- strategy=naive: 20 parallel bookings of 1 seat(s) against a quota of 5 on 12627 / 2102-11-21 / SL 
   req | http | outcome   | booking  | pnr        | latency_ms | finished_at_ms
   ----+------+-----------+----------+------------+------------+---------------
-  12  | 201  | CONFIRMED | 202e35ed | 4317704988 | 350        | 363           
-  17  | 201  | CONFIRMED | e9d5fbfc | 6913813291 | 363        | 376           
-  1   | 201  | CONFIRMED | 9d719e54 | 4058942742 | 365        | 378           
-  15  | 201  | CONFIRMED | dc27719e | 7764374533 | 368        | 381           
-  16  | 201  | CONFIRMED | cad3c6f6 | 6497132341 | 368        | 382           
-  8   | 201  | CONFIRMED | ae90d92c | 2357054597 | 370        | 383           
-  13  | 201  | CONFIRMED | 688ce667 | 9854554161 | 380        | 393           
-  2   | 201  | CONFIRMED | 0e051e43 | 1528678747 | 396        | 409           
-  6   | 201  | CONFIRMED | eb6212ce | 3851088065 | 396        | 410           
-  5   | 201  | CONFIRMED | 709201c6 | 7872197670 | 400        | 414           
-  20  | 201  | CONFIRMED | 64be98c8 | 8077273984 | 403        | 415           
-  19  | 201  | CONFIRMED | 44f31c89 | 5209582448 | 410        | 424           
-  14  | 201  | CONFIRMED | 4adaec8b | 7677928777 | 416        | 429           
-  11  | 201  | CONFIRMED | 08e2d208 | 5554597706 | 421        | 434           
-  3   | 201  | CONFIRMED | 4e3c4493 | 1085951931 | 424        | 437           
-  10  | 201  | CONFIRMED | 02d6e625 | 1681738688 | 427        | 440           
-  4   | 201  | CONFIRMED | 77b2d2fd | 1738611995 | 430        | 444           
-  9   | 201  | CONFIRMED | 1e728cbb | 7143932973 | 432        | 445           
-  7   | 201  | CONFIRMED | 39060abd | 9834751552 | 434        | 446           
-  18  | 201  | CONFIRMED | 4f5a6bf1 | 4173825502 | 434        | 448           
+  11  | 201  | CONFIRMED | 03924599 | 4736157442 | 424        | 450           
+  17  | 201  | CONFIRMED | 26a3d509 | 6339103945 | 430        | 454           
+  14  | 201  | CONFIRMED | 73a1b9aa | 7450417170 | 451        | 477           
+  2   | 201  | CONFIRMED | 0e90def8 | 9237503961 | 494        | 519           
+  4   | 201  | CONFIRMED | 19c49e6c | 5644922803 | 519        | 544           
+  3   | 201  | CONFIRMED | 5f8a126f | 1836887982 | 521        | 545           
+  20  | 201  | CONFIRMED | 67038a69 | 3453219239 | 519        | 545           
+  18  | 201  | CONFIRMED | b94c2d08 | 8638028671 | 521        | 546           
+  16  | 201  | CONFIRMED | 44f67952 | 5837293387 | 535        | 561           
+  13  | 201  | CONFIRMED | 16f50393 | 9564095246 | 537        | 562           
+  6   | 201  | CONFIRMED | 121471d3 | 5908717277 | 541        | 566           
+  5   | 201  | CONFIRMED | aec2e65b | 9392416132 | 553        | 578           
+  12  | 201  | CONFIRMED | 78e530c5 | 4144257148 | 558        | 583           
+  19  | 201  | CONFIRMED | a0b329ff | 2636158978 | 557        | 583           
+  8   | 201  | CONFIRMED | bdfc24dd | 4142078790 | 563        | 588           
+  1   | 201  | CONFIRMED | c3085c0a | 5858788539 | 564        | 591           
+  9   | 201  | CONFIRMED | 3a83668a | 1645741371 | 567        | 593           
+  7   | 201  | CONFIRMED | e19871de | 9635037547 | 569        | 595           
+  10  | 201  | CONFIRMED | 0852bfe4 | 7943344811 | 570        | 595           
+  15  | 201  | CONFIRMED | 83bee787 | 7387092179 | 569        | 596           
 
   accepted (201 CONFIRMED): 20   rejected (409 SEATS_UNAVAILABLE): 0   other: 0
 
@@ -35,7 +35,7 @@ Seat quota after the run   [inventory-service DB]
   SELECT train_no, journey_date, travel_class, total_seats, available_seats, version FROM seat_inventory WHERE train_no = %(t)s AND journey_date = %(d)s AND travel_class = %(c)s
   train_no | journey_date | travel_class | total_seats | available_seats | version
   ---------+--------------+--------------+-------------+-----------------+--------
-  12627    | 2029-04-16   | SL           | 5           | 4               | 20     
+  12627    | 2102-11-21   | SL           | 5           | 4               | 20     
 
 Seat holds by status   [inventory-service DB]
   SELECT h.status, count(*) AS holds, sum(h.seat_count) AS seats FROM seat_holds h JOIN seat_inventory i USING (inventory_id) WHERE i.train_no = %(t)s AND i.journey_date = %(d)s AND i.travel_class = %(c)s GROUP BY h.status ORDER BY h.status
@@ -61,29 +61,29 @@ Payments for these bookings   [payment-service DB]
    [FAIL] available (4) + taken (20) == total (5)
    [PASS] confirmed bookings (20) == captured payments (20)
 
---- strategy=atomic: 20 parallel bookings of 1 seat(s) against a quota of 5 on 12627 / 2053-04-01 / SL 
+--- strategy=atomic: 20 parallel bookings of 1 seat(s) against a quota of 5 on 12627 / 2066-07-10 / SL 
   req | http | outcome           | booking  | pnr        | latency_ms | finished_at_ms
   ----+------+-------------------+----------+------------+------------+---------------
-  10  | 409  | SEATS_UNAVAILABLE | 25c5b4c2 | -          | 89         | 103           
-  17  | 409  | SEATS_UNAVAILABLE | 51276659 | -          | 91         | 105           
-  6   | 409  | SEATS_UNAVAILABLE | 579f4bde | -          | 99         | 113           
-  11  | 409  | SEATS_UNAVAILABLE | b41c1e02 | -          | 98         | 113           
-  19  | 409  | SEATS_UNAVAILABLE | 6aa4b181 | -          | 99         | 114           
-  1   | 409  | SEATS_UNAVAILABLE | f2585039 | -          | 104        | 118           
-  9   | 409  | SEATS_UNAVAILABLE | 0f94a381 | -          | 105        | 120           
-  12  | 409  | SEATS_UNAVAILABLE | b600aa09 | -          | 107        | 123           
-  13  | 409  | SEATS_UNAVAILABLE | 3d59e773 | -          | 110        | 125           
-  2   | 409  | SEATS_UNAVAILABLE | d4e53212 | -          | 112        | 127           
-  8   | 409  | SEATS_UNAVAILABLE | 24dadbdc | -          | 112        | 127           
-  5   | 409  | SEATS_UNAVAILABLE | 9c16f0c4 | -          | 114        | 129           
-  7   | 409  | SEATS_UNAVAILABLE | 0a7dccf9 | -          | 115        | 129           
-  14  | 409  | SEATS_UNAVAILABLE | c3ff022b | -          | 114        | 130           
-  20  | 409  | SEATS_UNAVAILABLE | e0144c63 | -          | 116        | 131           
-  18  | 201  | CONFIRMED         | ff3a6a45 | 6982958323 | 205        | 219           
-  3   | 201  | CONFIRMED         | 61075f64 | 5877304396 | 209        | 222           
-  16  | 201  | CONFIRMED         | 350dccf3 | 1484587431 | 207        | 222           
-  4   | 201  | CONFIRMED         | c2f4c5fa | 8371502975 | 210        | 225           
-  15  | 201  | CONFIRMED         | 582b5b6f | 9350457844 | 210        | 226           
+  2   | 409  | SEATS_UNAVAILABLE | 558e475b | -          | 122        | 139           
+  4   | 409  | SEATS_UNAVAILABLE | 683aab80 | -          | 121        | 140           
+  10  | 409  | SEATS_UNAVAILABLE | a7df1bf9 | -          | 123        | 142           
+  13  | 409  | SEATS_UNAVAILABLE | 67a16c4d | -          | 125        | 143           
+  7   | 409  | SEATS_UNAVAILABLE | 9506b43a | -          | 131        | 149           
+  17  | 409  | SEATS_UNAVAILABLE | eb86cb92 | -          | 130        | 149           
+  8   | 409  | SEATS_UNAVAILABLE | 1deae774 | -          | 133        | 150           
+  14  | 409  | SEATS_UNAVAILABLE | c9d63655 | -          | 134        | 153           
+  9   | 409  | SEATS_UNAVAILABLE | 0fdd2625 | -          | 137        | 156           
+  18  | 409  | SEATS_UNAVAILABLE | e2367fc9 | -          | 138        | 156           
+  20  | 409  | SEATS_UNAVAILABLE | 221424a0 | -          | 142        | 160           
+  12  | 409  | SEATS_UNAVAILABLE | 60993119 | -          | 143        | 162           
+  19  | 409  | SEATS_UNAVAILABLE | 05e9c331 | -          | 145        | 162           
+  11  | 409  | SEATS_UNAVAILABLE | b2175824 | -          | 144        | 163           
+  5   | 409  | SEATS_UNAVAILABLE | 9bb8d143 | -          | 148        | 165           
+  6   | 201  | CONFIRMED         | e889354e | 6594104483 | 227        | 244           
+  16  | 201  | CONFIRMED         | 8f68407d | 9392767750 | 250        | 268           
+  1   | 201  | CONFIRMED         | e49edec5 | 8185769092 | 252        | 269           
+  15  | 201  | CONFIRMED         | 1917e0d6 | 6546975692 | 255        | 272           
+  3   | 201  | CONFIRMED         | 03b65367 | 5190696913 | 259        | 276           
 
   accepted (201 CONFIRMED): 5   rejected (409 SEATS_UNAVAILABLE): 15   other: 0
 
@@ -91,7 +91,7 @@ Seat quota after the run   [inventory-service DB]
   SELECT train_no, journey_date, travel_class, total_seats, available_seats, version FROM seat_inventory WHERE train_no = %(t)s AND journey_date = %(d)s AND travel_class = %(c)s
   train_no | journey_date | travel_class | total_seats | available_seats | version
   ---------+--------------+--------------+-------------+-----------------+--------
-  12627    | 2053-04-01   | SL           | 5           | 0               | 5      
+  12627    | 2066-07-10   | SL           | 5           | 0               | 5      
 
 Seat holds by status   [inventory-service DB]
   SELECT h.status, count(*) AS holds, sum(h.seat_count) AS seats FROM seat_holds h JOIN seat_inventory i USING (inventory_id) WHERE i.train_no = %(t)s AND i.journey_date = %(d)s AND i.travel_class = %(c)s GROUP BY h.status ORDER BY h.status
@@ -141,4 +141,4 @@ the committed value, so once the seats are gone the UPDATE matches no row and th
 request is rejected with 409 SEATS_UNAVAILABLE. The hold row is inserted in the same
 transaction, so counter and holds always agree.
 
-[122 raw log lines saved to evidence/challenge-1-concurrency/inventory_logs_20261021-124246.jsonl]
+[122 raw log lines saved to evidence/challenge-1-concurrency/inventory_logs_20261021-135013.jsonl]

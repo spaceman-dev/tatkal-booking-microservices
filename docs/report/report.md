@@ -421,7 +421,7 @@ booking retries an idempotent call once.
 payment REFUNDED, hold RELEASED, quota restored, refund SMS sent. The whole request is traced through all
 five services' logs by one correlation id. Failure at step 2 (declined): only RELEASE runs. A failed
 compensation: with the bank's refund API down, the booking stays COMPENSATING (seats already released);
-when the bank recovers, the recovery job completes the refund with no API call, 21 s later. A final check
+when the bank recovers, the recovery job completes the refund with no API call, 24 s later. A final check
 reads all four databases and finds every booking consistent.
 
 **Alternatives.** Choreography would need a broker and would spread the flow over four services. Since
@@ -454,9 +454,9 @@ under each bank behaviour:
 
 - **Slow bank (3 s).** The first attempt times out and the retry gets the bank's stored result. The
   booking is CONFIRMED after 3.1 s with two attempts and one capture.
-- **Bank down.** The booking fails in 0.4 s with 503, the payment is FAILED and the seats are released.
-- **Flaky bank (60 % of calls fail).** Three of four bookings succeeded (one on a retry) and one failed
-  cleanly after three attempts with its seats released; none was captured twice.
+- **Bank down.** The booking fails in 0.5 s with 503, the payment is FAILED and the seats are released.
+- **Flaky bank (60 % of calls fail).** All four bookings went through, two of them on the second attempt,
+  and none was captured twice. (A booking that runs out of attempts fails like "bank down".)
 
 # 7. Testing
 

@@ -1,0 +1,18 @@
+====================================================================================================
+DATABASE PER SERVICE - CREDENTIAL ISOLATION CHECK
+command : python scripts/check_db_isolation.py
+run at  : 2026-10-21 12:42:46 IST (UTC+0530)   |   UTC 2026-10-21 07:12:46
+git     : e409cd6
+====================================================================================================
+Each service's database runs in its own PostgreSQL container (docker-compose.db.yml) with its
+own user and password. Rows: credentials used. Columns: database tried.
+
+  credentials \ database                  | booking_db :5441                        | inventory_db :5442                      | payment_db :5443                        | notification_db :5444                  
+  ----------------------------------------+-----------------------------------------+-----------------------------------------+-----------------------------------------+----------------------------------------
+  booking_svc (booking-service)           | CONNECTED (5 tables)                    | refused: password authentication failed | refused: password authentication failed | refused: password authentication failed
+  inventory_svc (inventory-service)       | refused: password authentication failed | CONNECTED (3 tables)                    | refused: password authentication failed | refused: password authentication failed
+  payment_svc (payment-service)           | refused: password authentication failed | refused: password authentication failed | CONNECTED (3 tables)                    | refused: password authentication failed
+  notification_svc (notification-service) | refused: password authentication failed | refused: password authentication failed | refused: password authentication failed | CONNECTED (1 tables)                   
+
+Expected: only the diagonal connects.
+Result: PASS

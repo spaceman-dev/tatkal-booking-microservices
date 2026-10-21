@@ -1,5 +1,5 @@
-"""Pure ASGI middleware: correlation id in/out, one access log line per request,
-and a last-resort handler so even unexpected errors come back as problem+json."""
+"""ASGI middleware: correlation id in and out, one access log line per request, and
+unexpected errors turned into problem+json as well."""
 import json
 import logging
 import time

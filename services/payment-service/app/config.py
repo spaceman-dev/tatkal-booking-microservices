@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     db_max_overflow: int = 20
     log_level: str = "INFO"
 
-    # The external (mock) bank gateway
+    # bank gateway (our mock in dev)
     gateway_url: str
     gateway_timeout_seconds: float = 2.0
     gateway_max_attempts: int = 3

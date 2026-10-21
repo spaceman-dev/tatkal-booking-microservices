@@ -1,22 +1,17 @@
-"""BR4 - a booking is charged at most once, and only money that was really taken
-(a captured payment) can be refunded - in full, and only once.
-
-"At most once" is enforced in three layers: the Idempotency-Key on the API, a
-UNIQUE(booking_id) constraint on payments, and the gateway's own idempotency key.
-This module holds the parts of the rule that are pure logic.
-"""
+"""BR4: a booking is charged at most once, and only captured money is refunded, in full
+and once. Pure logic here, the DB constraints and idempotency keys do the rest."""
 from app.domain.errors import RuleViolation
 
-MAX_AMOUNT_PAISE = 5_00_000 * 100  # Rs 5 lakh - far above any Tatkal ticket
+MAX_AMOUNT_PAISE = 5_00_000 * 100  # Rs 5 lakh, way above any Tatkal fare
 
 
 class PaymentStatus:
-    PENDING = "PENDING"        # sent to the gateway, outcome not known yet
+    PENDING = "PENDING"        # sent to the bank, outcome not known yet
     CAPTURED = "CAPTURED"
-    DECLINED = "DECLINED"      # the bank said no; nothing was taken
-    FAILED = "FAILED"          # gateway unreachable; nothing was taken
+    DECLINED = "DECLINED"      # bank said no, nothing taken
+    FAILED = "FAILED"          # bank unreachable or it rejected the request, nothing taken
     REFUNDED = "REFUNDED"
-    VOIDED = "VOIDED"          # no charge: never sent (cancelled first) or the bank had none
+    VOIDED = "VOIDED"          # no charge: voided before it was sent, or the bank had none
 
 
 PAYMENT_TRANSITIONS: dict[str, set[str]] = {
@@ -26,12 +21,11 @@ PAYMENT_TRANSITIONS: dict[str, set[str]] = {
     PaymentStatus.DECLINED: set(),
     PaymentStatus.FAILED: set(),
     PaymentStatus.REFUNDED: set(),
-    # Only when a charge reached the bank after the payment had been voided: that
-    # money is refunded straight away, so it ends REFUNDED instead of VOIDED.
+    # only for a late capture (charge landed after the void), which we refund straight away
     PaymentStatus.VOIDED: {PaymentStatus.REFUNDED},
 }
 
-# A payment in one of these states never moved money.
+# no money moved in these states
 NOTHING_TAKEN = {PaymentStatus.DECLINED, PaymentStatus.FAILED, PaymentStatus.VOIDED}
 
 
@@ -50,9 +44,7 @@ def check_charge_amount(amount_paise: int) -> None:
 
 
 def refund_amount_for(status: str, captured_amount_paise: int, late_capture: bool = False) -> int:
-    """Refunds are always for the full captured amount, and only for money that was
-    really taken: a CAPTURED payment, or a capture that reached the bank after the
-    payment had been VOIDED (`late_capture`)."""
+    """BR4: always the full amount, and only for CAPTURED or a VOIDED payment with a late capture."""
     if status == PaymentStatus.REFUNDED:
         raise RuleViolation("BR4", "ALREADY_REFUNDED", "Payment has already been refunded")
     if status == PaymentStatus.CAPTURED or (status == PaymentStatus.VOIDED and late_capture):

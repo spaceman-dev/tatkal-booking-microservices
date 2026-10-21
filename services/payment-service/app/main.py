@@ -19,12 +19,12 @@ from app.services.payments import PaymentService
 log = logging.getLogger(__name__)
 
 DESCRIPTION = """
-Owns payments and refunds for bookings and is the only service that talks to the
-bank gateway. Guarantees a booking is charged at most once (BR4):
+Payments and refunds for bookings. The only service that talks to the bank gateway.
+A booking is charged at most once (BR4) because of:
 
 * `Idempotency-Key` on `POST /payments` (stored with a request fingerprint and the response)
 * `UNIQUE(booking_id)` on the payments table
-* the same idempotency key on every retry towards the gateway
+* the same idempotency key on every retry to the gateway
 """
 
 
@@ -47,7 +47,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Payment Service", version="1.0.0", description=DESCRIPTION.strip(), lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = engine
-    # Longest a charge can keep sending attempts: every attempt's timeout plus the largest backoff, plus margin.
+    # how long a charge can keep retrying: each attempt's timeout + max backoff, plus 10 s slack
     charge_window = settings.gateway_max_attempts * (settings.gateway_timeout_seconds
                                                      + settings.gateway_backoff_cap_seconds) + 10
     app.state.payments = PaymentService(engine, gateway, charge_window)

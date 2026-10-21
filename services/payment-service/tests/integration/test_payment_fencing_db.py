@@ -1,6 +1,5 @@
-"""A compensation can run while the charge it is undoing is still being processed
-(booking-service gave up waiting, payment-service did not). None of these
-interleavings may end with money taken and no refund."""
+"""Refund or void running while the charge is still going (booking-service gave up
+waiting, we didn't). None of these may end with money taken and no refund."""
 import json
 import uuid
 
@@ -22,7 +21,7 @@ class FakeBank:
 
     def __init__(self, on_charge=None):
         self.charges, self.refunds, self.calls = {}, [], []
-        self.on_charge = on_charge  # called with the attempt number; may raise or have side effects
+        self.on_charge = on_charge  # called with the attempt number, can raise or have side effects
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -56,7 +55,7 @@ def status_of(engine, booking_id):
                             {"b": booking_id}).one()
 
 
-def test_void_before_the_charge_arrives_fences_the_late_charge(engine):
+def test_void_before_charge_blocks_late_charge(engine):
     bank = FakeBank()
     service = service_with(engine, bank)
     booking_id = uuid.uuid4()
@@ -82,10 +81,9 @@ def test_void_returns_an_existing_payment_unchanged(engine):
     assert again["payment_id"] == paid["payment_id"] and again["status"] == "CAPTURED"
 
 
-def test_refund_during_a_retry_backoff_waits_instead_of_voiding(engine):
-    """The reviewer's case: attempt 1 fails, the compensation's refund arrives during
-    the backoff, attempt 2 captures. Previously the refund voided the payment and the
-    capture was lost; now it is told to retry, and the later refund returns the money."""
+def test_refund_during_backoff_gets_in_progress(engine):
+    """Attempt 1 fails, a refund comes in during the backoff, attempt 2 captures. The early
+    refund gets PAYMENT_IN_PROGRESS and the later one returns the money."""
     bank = FakeBank(on_charge=lambda attempt, request: _refuse_first(attempt, request))
     during_backoff = []
     holder = {}
@@ -115,7 +113,7 @@ def _refuse_first(attempt, request):
         raise httpx.ConnectError("bank refused the connection", request=request)
 
 
-def test_a_charge_that_died_long_ago_is_reconciled_with_the_bank(engine):
+def test_dead_pending_charge_is_reconciled(engine):
     bank = FakeBank()
     service = service_with(engine, bank, charge_window=30)
     booking_id, payment_id = uuid.uuid4(), uuid.uuid4()
@@ -151,7 +149,7 @@ def test_charge_stops_retrying_once_the_payment_was_closed(engine):
     assert bank.calls == ["charge"]  # the second attempt was never sent
 
 
-def test_a_capture_after_the_payment_was_voided_is_refunded_at_once(engine):
+def test_late_capture_after_void_is_refunded(engine):
     holder = {}
 
     def void_while_at_the_bank(attempt, request):

@@ -1,15 +1,11 @@
-"""HTTP client for the external (mock) bank gateway.
-
-Every call has a timeout, and failed calls are retried with exponential backoff
-and full jitter. Retrying a charge is only safe because every attempt carries the
-same Idempotency-Key, so the gateway processes it at most once.
+"""Client for the bank gateway (the mock bank in dev).
 
 Outcome kinds:
-  captured / declined / processed  - the gateway answered
-  rejected                         - the gateway refused the request (4xx); not retried
-  unavailable                      - the request certainly did not get processed
-  timeout                          - we sent it but never heard back: outcome UNKNOWN
-  cancelled                        - the payment was closed by someone else; no further attempt sent
+  captured / declined / processed: the bank answered
+  rejected: 4xx, the bank refused the request itself (not retried)
+  unavailable: the bank never processed it, nothing charged
+  timeout: sent but we never heard back, may or may not have been charged
+  cancelled: payment was closed meanwhile, no more attempts sent
 """
 import logging
 import random
@@ -26,8 +22,8 @@ log = logging.getLogger(__name__)
 
 def backoff_delay(attempt: int, base_seconds: float, cap_seconds: float,
                   rand: Callable[[], float] = random.random) -> float:
-    """Full jitter: uniform in [0, min(cap, base * 2^(attempt-1))]. Spreads the
-    retries of many clients out instead of having them hit the gateway together."""
+    """Full jitter: random delay in [0, min(cap, base * 2^(attempt-1))], so clients
+    don't all retry at the same moment."""
     return rand() * min(cap_seconds, base_seconds * (2 ** (attempt - 1)))
 
 
@@ -39,6 +35,7 @@ class GatewayOutcome:
     detail: str | None = None
 
 
+# pass our correlation id on, so the bank's log lines can be matched with ours
 def _add_correlation_id(request: httpx.Request) -> None:
     request.headers[CORRELATION_HEADER] = get_correlation_id()
 
@@ -49,6 +46,7 @@ class GatewayClient:
                  sleep: Callable[[float], None] = time.sleep):
         self.http = httpx.Client(
             base_url=base_url,
+            # short connect timeout: if we can't even connect, nothing was sent, so no point waiting
             timeout=httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 1.0)),
             transport=transport,
             event_hooks={"request": [_add_correlation_id]},
@@ -75,15 +73,16 @@ class GatewayClient:
         return outcome
 
     def find_charge(self, idempotency_key: str) -> dict | None:
-        """Reconciliation: ask the gateway what happened to a charge. Raises
-        httpx.HTTPError if the gateway cannot be reached."""
+        """For reconciliation. Raises httpx.HTTPError if the bank can't be reached."""
         response = self.http.get("/gateway/v1/charges", params={"idempotency_key": idempotency_key})
         response.raise_for_status()
         found = response.json()
         return found[0] if found else None
 
+    # TODO: add a circuit breaker so we stop retrying every charge while the bank is down
     def _post_with_retries(self, path: str, idempotency_key: str, payload: dict,
                            still_wanted: Callable[[], bool] | None = None) -> GatewayOutcome:
+        # set once any attempt may have reached the bank
         maybe_processed = False
         detail = None
         for attempt in range(1, self.max_attempts + 1):
@@ -91,17 +90,20 @@ class GatewayClient:
                 log.warning("payment was closed meanwhile, not sending another attempt",
                             extra={"path": path, "attempt": attempt, "idempotency_key": idempotency_key})
                 return GatewayOutcome("cancelled", None, attempt - 1, f"closed before attempt {attempt}")
+            # same Idempotency-Key on every attempt, so a retry can't charge (or refund) twice
             try:
                 response = self.http.post(path, json=payload, headers={"Idempotency-Key": idempotency_key})
             except (httpx.ConnectTimeout, httpx.PoolTimeout, httpx.ConnectError) as exc:
-                detail = type(exc).__name__  # never reached the gateway
+                detail = type(exc).__name__  # never reached the bank
             except httpx.TimeoutException as exc:
-                maybe_processed = True       # sent, but no answer - it may have been processed
+                maybe_processed = True       # sent but no answer, it may have gone through
                 detail = type(exc).__name__
             except httpx.TransportError as exc:
+                # other network errors: the request may have got through, so treat like a timeout
                 maybe_processed = True
                 detail = type(exc).__name__
             else:
+                # below 500 is a real answer from the bank, return it. 5xx falls through to a retry
                 if response.status_code < 500:
                     kind = "ok" if response.status_code == 200 else "rejected"
                     if attempt > 1:
@@ -122,4 +124,5 @@ class GatewayClient:
                           extra={"path": path, "attempts": attempt, "error": detail,
                                  "outcome_unknown": maybe_processed, "idempotency_key": idempotency_key})
 
+        # one unanswered attempt is enough: after that we can't say nothing was charged
         return GatewayOutcome("timeout" if maybe_processed else "unavailable", None, self.max_attempts, detail)

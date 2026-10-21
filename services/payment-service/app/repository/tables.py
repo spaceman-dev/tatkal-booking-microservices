@@ -1,5 +1,4 @@
-"""Schema owned by payment-service. `booking_id` refers to booking-service's
-booking by id only - no foreign key crosses a service boundary."""
+"""Tables in payment_db. booking_id is just an id from booking-service, no FK across services."""
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -33,7 +32,7 @@ payments = Table(
     Column("gateway_attempts", Integer, nullable=False, server_default="0"),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
-    # BR4: whatever happens upstream, the database will not hold two payments for one booking.
+    # BR4: never two payments for one booking, whatever happens upstream
     UniqueConstraint("booking_id", name="uq_payments_booking"),
     CheckConstraint("amount_paise > 0", name="ck_payments_amount_positive"),
     CheckConstraint("status IN ('PENDING','CAPTURED','DECLINED','FAILED','REFUNDED','VOIDED')",
@@ -51,13 +50,13 @@ refunds = Table(
     Column("gateway_refund_id", String(40)),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
-    # BR4: at most one refund per payment.
+    # BR4: one refund per payment
     UniqueConstraint("payment_id", name="uq_refunds_payment"),
     CheckConstraint("amount_paise > 0", name="ck_refunds_amount_positive"),
     CheckConstraint("status IN ('PENDING','SUCCEEDED')", name="ck_refunds_status"),
 )
 
-# Challenge 2: Idempotency-Key + request fingerprint + the stored response.
+# Idempotency-Key store for POST /payments (Challenge 2): key, request hash, stored response
 idempotency_keys = Table(
     "idempotency_keys",
     metadata,
@@ -66,7 +65,7 @@ idempotency_keys = Table(
     Column("status", String(12), nullable=False),
     Column("owner_token", String(32), nullable=False),
     Column("response_code", Integer),
-    # Stored as the exact text that was sent, so a replay is byte-for-byte the same.
+    # the response text as it was sent, so a replay is byte-for-byte the same
     Column("response_body", Text),
     Column("resource_id", String(64)),
     Column("locked_until", DateTime(timezone=True), nullable=False),

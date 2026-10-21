@@ -1,5 +1,3 @@
-"""Challenge 2 / BR4 against the real payment database: duplicates that arrive at
-the same moment still produce one payment and one gateway charge."""
 import threading
 import time
 import uuid
@@ -69,7 +67,7 @@ def test_parallel_requests_with_the_same_key_charge_once(engine):
     assert len(gateway_calls) == 1
 
 
-def test_same_booking_with_different_keys_is_still_charged_once(engine):
+def test_same_booking_different_keys_charged_once(engine):
     gateway, gateway_calls = slow_gateway()
     service = PaymentService(engine, gateway)
     booking_id = uuid.uuid4()
@@ -91,7 +89,7 @@ def test_same_booking_with_different_keys_is_still_charged_once(engine):
     assert len(gateway_calls) == 1
 
 
-def test_a_request_that_lost_its_key_cannot_overwrite_the_new_owner(engine):
+def test_expired_owner_cannot_overwrite_new_owner(engine):
     store = IdempotencyStore(engine, lease_seconds=0, wait_seconds=2, poll_seconds=0.05)
     key, request_hash = f"test-{uuid.uuid4()}", "a" * 64
     slow = store.claim(key, request_hash)   # its lease runs out at once...
@@ -106,7 +104,7 @@ def test_a_request_that_lost_its_key_cannot_overwrite_the_new_owner(engine):
     assert not replay.owner and replay.body_text == '{"payment_id":"new-owner"}'
 
 
-def test_an_answer_that_is_only_true_for_now_is_not_stored(engine):
+def test_non_final_error_is_not_stored(engine):
     store = IdempotencyStore(engine, lease_seconds=60, wait_seconds=2, poll_seconds=0.05)
     key, request_hash = f"test-{uuid.uuid4()}", "b" * 64
     answers = [AppError(409, "IDEMPOTENCY_REQUEST_IN_PROGRESS", "Still being processed",

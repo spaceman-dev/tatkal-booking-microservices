@@ -1,6 +1,3 @@
-"""Gateway client: timeouts are retried with backoff + jitter, every attempt
-reuses the same Idempotency-Key, and 4xx answers are never retried.
-Uses httpx.MockTransport, so no network and no real sleeping."""
 import httpx
 import pytest
 
@@ -42,7 +39,7 @@ def test_gateway_down_gives_unavailable_not_unknown():
     assert outcome.attempts == 3
 
 
-def test_any_timeout_without_a_final_answer_means_outcome_unknown():
+def test_timeout_then_503s_is_outcome_unknown():
     calls = []
 
     def handler(request):
@@ -81,7 +78,7 @@ def test_declined_charge_is_reported_as_declined():
     assert client.charge("pay-1", CHARGE).kind == "declined"
 
 
-def test_no_further_attempt_once_the_payment_is_no_longer_wanted():
+def test_no_retry_once_payment_is_closed():
     calls = []
 
     def handler(request):

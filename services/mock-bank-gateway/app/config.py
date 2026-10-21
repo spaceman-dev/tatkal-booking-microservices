@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     port: int
     log_level: str = "INFO"
 
-    # Behaviour at start-up. Can be changed at runtime with PUT /gateway/v1/admin/mode.
+    # starting mode, can be switched at runtime with PUT /gateway/v1/admin/mode
     gateway_mode: Mode = "normal"
     gateway_latency_ms: int = 80
     gateway_slow_latency_ms: int = 4000

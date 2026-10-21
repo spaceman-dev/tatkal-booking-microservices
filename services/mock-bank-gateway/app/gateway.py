@@ -1,5 +1,3 @@
-"""In-memory behaviour of the fake bank. State is lost on restart, which is fine
-for a mock of an external system we do not own."""
 import asyncio
 import hashlib
 import json
@@ -65,6 +63,7 @@ class Gateway:
     def _reject_if_unavailable(self, operation: str) -> None:
         if operation not in self.affects:
             return
+        # reject before doing anything, so a 503 from us always means nothing was processed
         if self.mode == "down" or (self.mode == "flaky" and random.random() < self.failure_rate):
             self.stats[f"{operation}_rejected_unavailable"] += 1
             log.warning("simulated outage, rejecting %s", operation, extra={"mode": self.mode})
@@ -72,6 +71,7 @@ class Gateway:
                            f"Simulated outage (mode={self.mode}); the request was not processed")
 
     async def _processing_delay(self) -> None:
+        # slow mode is meant to be longer than payment-service's timeout
         delay = self.slow_latency_ms if self.mode == "slow" else self.latency_ms
         await asyncio.sleep(delay / 1000)
 
@@ -82,6 +82,7 @@ class Gateway:
         self.stats["charge_requests"] += 1
         self._reject_if_unavailable("charge")
         fp = fingerprint(payload)
+        # per-key lock: a duplicate that comes in mid-charge waits here, then gets the replay
         async with self.locks[f"charge:{idempotency_key}"]:
             if idempotency_key in self.charge_by_key:
                 previous_fp, charge = self.charge_by_key[idempotency_key]
@@ -125,7 +126,7 @@ class Gateway:
         }
 
     async def find_by_key(self, idempotency_key: str) -> dict | None:
-        # Waits for an in-flight request with the same key, so the answer is final.
+        # same lock as charge(), so a charge still in progress finishes before we answer
         async with self.locks[f"charge:{idempotency_key}"]:
             entry = self.charge_by_key.get(idempotency_key)
             return entry[1] if entry else None
@@ -148,6 +149,7 @@ class Gateway:
                 self.stats["refund_replays"] += 1
                 return refund, True
 
+            # what a real bank would check: charge exists, is captured, not refunded yet, not over the amount
             charge = self.charges.get(payload["charge_id"])
             if charge is None:
                 raise AppError(404, "CHARGE_NOT_FOUND", "Charge not found", f"No charge {payload['charge_id']}")
@@ -177,6 +179,7 @@ class Gateway:
                                                 "amount_paise": refund["amount_paise"]})
             return refund, False
 
+    # GET /stats: the scripts read these to show nothing was charged twice
     def snapshot_stats(self) -> dict:
         return {
             **{k: self.stats.get(k, 0) for k in (

@@ -50,7 +50,7 @@ class ModeIn(BaseModel):
     slow_latency_ms: int | None = Field(default=None, ge=0, le=120_000)
     failure_rate: float | None = Field(default=None, ge=0, le=1)
     affects: list[Literal["charge", "refund"]] | None = Field(
-        default=None, description="Operations hit by down/flaky (default both) - e.g. only refunds failing")
+        default=None, description="Operations hit by down/flaky (default both). ['refund'] = refund-only outage")
 
 
 def _require_key(key: str | None) -> str:

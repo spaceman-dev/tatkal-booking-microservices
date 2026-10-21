@@ -1,5 +1,4 @@
-"""One error format for every service: RFC 9457 problem details plus a
-machine-readable `code` and the request's `correlation_id`."""
+"""Error format shared by all services: RFC 9457 problem details plus `code` and `correlation_id`."""
 import logging
 
 from fastapi import FastAPI, Request
@@ -18,10 +17,10 @@ PROBLEM_TYPE_BASE = "https://tatkal.example/problems/"
 
 
 class AppError(Exception):
-    """Raised by the service layer; turned into a problem+json response.
+    """Raised by the service layer and turned into a problem+json response.
 
-    `final=False` marks an answer that is only true for now (e.g. "still in
-    progress"). The idempotency layer does not store such answers against a key."""
+    final=False means the answer can still change (like "still in progress"), so the
+    idempotency layer does not store it for the key."""
 
     def __init__(self, status: int, code: str, title: str, detail: str | None = None, *,
                  headers: dict[str, str] | None = None, final: bool = True, **extra):

@@ -1,16 +1,10 @@
-"""Challenge 2 - Idempotency-Key handling for unsafe POSTs.
+"""Idempotency-Key handling for unsafe POSTs (same file in booking and payment).
 
-1. Claim the key with INSERT ... ON CONFLICT DO NOTHING. The primary key means
-   exactly one request becomes the owner, even if duplicates arrive together.
-2. The owner does the work and stores the status code and body against the key.
-3. Any other request with the same key:
-     - different request fingerprint      -> 422 IDEMPOTENCY_KEY_REUSED
-     - first request already COMPLETED    -> replay the stored response
-     - first request still IN_PROGRESS    -> wait for it, then replay
-   If the first request died (its lease ran out) the next one takes over.
-
-Every claim carries an owner token, so a request whose lease ran out can no longer
-overwrite or delete the record of the request that took over from it.
+The first request claims the key with INSERT ... ON CONFLICT DO NOTHING (primary key, so
+only one can win), does the work and stores the status code and response body. Others
+with the same key get 422 if the body differs, the stored response if it is done, or
+wait for it while it runs. If the owner dies its lease runs out and the next request
+takes over. The owner token stops an old owner from overwriting the new one's record.
 """
 import hashlib
 import json
@@ -48,8 +42,8 @@ def require_key(raw: str | None) -> str:
 
 
 def fingerprint(method: str, path: str, payload: dict) -> str:
-    """SHA-256 of a canonical form of the request, so key order or whitespace in
-    the client's JSON does not matter but any change of a value does."""
+    """SHA-256 over method, path and body (sorted keys), so formatting doesn't matter
+    but any changed value does."""
     canonical = json.dumps({"method": method.upper(), "path": path, "body": payload},
                            sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(canonical.encode()).hexdigest()
@@ -138,8 +132,8 @@ class IdempotencyStore:
         return stored
 
     def release(self, key: str, token: str) -> None:
-        """Give the key back (after an unexpected error, or an answer that is not final)
-        so the client can retry with it."""
+        """Delete our IN_PROGRESS claim (unexpected error or a non-final answer) so the
+        client can retry with the same key."""
         with self.engine.begin() as conn:
             conn.execute(delete(keys).where(keys.c.idem_key == key, keys.c.owner_token == token,
                                             keys.c.status == "IN_PROGRESS"))
@@ -155,11 +149,11 @@ def run_idempotent(store: IdempotencyStore, key: str, request_hash: str, path: s
         status_code, body = action()
     except AppError as err:
         if not err.final:
-            # True only for now (e.g. "still in progress"): answer, but keep nothing for the key.
+            # an answer that can still change (still in progress): send it, but don't store it
             store.release(key, claim.token)
             return _response(err.status, json.dumps(err.to_problem(path), separators=(",", ":")),
                               replayed=False, headers=err.headers)
-        # Business failures (declined, sold out...) are final answers and are stored too.
+        # business failures (declined, sold out...) are final, so they get stored and replayed too
         status_code, body = err.status, err.to_problem(path)
     except Exception:
         store.release(key, claim.token)

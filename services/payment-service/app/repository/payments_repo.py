@@ -16,9 +16,8 @@ def insert_payment(conn: Connection, payment_id: UUID, booking_id: UUID, amount_
 
 def insert_voided_if_absent(conn: Connection, payment_id: UUID, booking_id: UUID, amount_paise: int,
                             currency: str, method: str, payer_ref: str) -> bool:
-    """Records a VOIDED payment for a booking that has none. Uses the same
-    UNIQUE(booking_id) as a real charge, so whichever comes first wins: a later
-    charge for this booking is refused before it reaches the bank."""
+    """VOIDED row for a booking with no payment yet. Shares UNIQUE(booking_id) with a real
+    charge, so whoever inserts first wins. False if the booking already had a payment."""
     row = conn.execute(
         pg_insert(payments)
         .values(payment_id=payment_id, booking_id=booking_id, amount_paise=amount_paise, currency=currency,
@@ -45,7 +44,8 @@ def get_payment_by_booking(conn: Connection, booking_id: UUID) -> dict | None:
 
 def set_status(conn: Connection, payment_id: UUID, from_statuses: tuple[str, ...], to_status: str,
                **fields) -> bool:
-    """Conditional status change; False means another request moved the payment first."""
+    """Only moves the payment if it is still in one of from_statuses. False means
+    another request moved it first."""
     result = conn.execute(
         update(payments)
         .where(payments.c.payment_id == payment_id, payments.c.status.in_(from_statuses))

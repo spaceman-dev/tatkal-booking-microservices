@@ -25,9 +25,9 @@ def idempotency_store(request: Request) -> IdempotencyStore:
     response_model=PaymentOut,
     summary="Charge a booking (saga step 2)",
     description=(
-        "Unsafe to repeat, so an `Idempotency-Key` header is required. The same key with the same body "
-        "returns the stored response (header `Idempotent-Replayed: true`); the same key with a different "
-        "body is rejected with 422. A booking can only ever have one payment (BR4)."
+        "Needs an `Idempotency-Key` header. Same key and same body returns the stored response (with "
+        "`Idempotent-Replayed: true`), same key with a different body gets 422. A booking can only have "
+        "one payment (BR4)."
     ),
     responses={
         400: {"description": "Missing or malformed Idempotency-Key"},
@@ -92,14 +92,14 @@ def get_payment(payment_id: UUID, payments: PaymentService = Depends(payment_ser
     response_model=PaymentOut,
     summary="Refund a payment in full (compensation of step 2)",
     description=(
-        "Naturally idempotent - a payment has at most one refund (BR4), so repeating the call returns "
-        "the same REFUNDED payment. A PENDING payment is first reconciled with the gateway."
+        "Safe to repeat: a payment has at most one refund (BR4), so a repeat returns the same REFUNDED "
+        "payment. A PENDING payment is reconciled with the bank first."
     ),
     responses={
         404: {"description": "No such payment (PAYMENT_NOT_FOUND)"},
         409: {"description": "Nothing was taken, nothing to refund (PAYMENT_NOT_REFUNDABLE)"},
         503: {"description": "Charge still in flight (PAYMENT_IN_PROGRESS) or the gateway did not confirm "
-                             "(REFUND_PENDING / GATEWAY_UNAVAILABLE); safe to retry"},
+                             "(REFUND_PENDING / GATEWAY_UNAVAILABLE). Safe to retry"},
     },
 )
 def refund_payment(payment_id: UUID, body: RefundIn | None = None,

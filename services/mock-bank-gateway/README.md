@@ -1,32 +1,30 @@
 # mock-bank-gateway
 
-A stand-in for an external UPI / card payment gateway (assignment condition (e): a dependency that can be
-slow or fail). It is not one of our business services: there is no database and all state is in memory,
-the way a third-party sandbox would look to us. Owner: Atharva Kadam.
+Fake UPI / card gateway for payment-service that we can make slow, down or flaky on purpose. No database,
+all state is in memory. Port 8099. Owner: Atharva Kadam.
 
-- **Port** 8099.
-- Deduplicates charges and refunds on the `Idempotency-Key` header, including requests that arrive while
-  the first one is still being processed.
-- Payer ids starting with `decline` or `fail` are declined (`INSUFFICIENT_FUNDS`); UPI amounts above
-  Rs 1 lakh are declined (`UPI_LIMIT_EXCEEDED`).
-
-## Behaviour switch
+Charges and refunds are deduped on `Idempotency-Key`, also while the first request is still running.
+Payers starting with `decline` or `fail` are declined (`INSUFFICIENT_FUNDS`), UPI over Rs 1 lakh too.
 
 | Mode | Effect |
 |---|---|
 | `normal` | answers after `latency_ms` (80 ms) |
-| `slow` | answers after `slow_latency_ms` (4 s) - longer than payment-service's 2 s timeout |
-| `down` | 503 straight away, nothing processed |
+| `slow` | answers after `slow_latency_ms` (4 s), longer than payment-service's 2 s timeout |
+| `down` | 503 right away, nothing processed |
 | `flaky` | 503 with probability `failure_rate`, otherwise normal |
+
+`affects` limits `down`/`flaky` to charges or refunds only (partial outage).
+
+payment-service calls `POST /gateway/v1/charges`, `POST /gateway/v1/refunds` and
+`GET /gateway/v1/charges?idempotency_key=` (reconcile). The scripts flip modes with `PUT /gateway/v1/admin/mode`
+and read `GET /gateway/v1/stats` to show no booking was captured twice:
 
 ```bash
 curl -X PUT localhost:8099/gateway/v1/admin/mode -H "Content-Type: application/json" -d '{"mode": "slow", "slow_latency_ms": 3000}'
 curl -X PUT localhost:8099/gateway/v1/admin/mode -H "Content-Type: application/json" -d '{"mode": "down", "affects": ["refund"]}'
 curl -X PUT localhost:8099/gateway/v1/admin/mode -H "Content-Type: application/json" -d '{"mode": "normal"}'
-curl localhost:8099/gateway/v1/stats      # requests, charges created, replays, captures per booking
+curl localhost:8099/gateway/v1/stats
 ```
-
-`affects` limits `down`/`flaky` to charges or refunds only (a partial outage).
 
 ## Run and test
 

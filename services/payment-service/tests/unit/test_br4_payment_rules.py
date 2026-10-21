@@ -1,6 +1,3 @@
-"""BR4 - a booking is charged at most once; only money that was really taken
-(a CAPTURED payment, or a late capture on a voided one) can be refunded, in
-full, and only once."""
 import pytest
 
 from app.domain.errors import RuleViolation
@@ -33,7 +30,7 @@ def test_br4_only_captured_payments_can_be_refunded(status):
     assert err.value.code == "PAYMENT_NOT_REFUNDABLE"
 
 
-def test_br4_a_capture_that_arrived_after_the_void_is_refunded_in_full():
+def test_br4_late_capture_on_voided_is_refunded():
     assert refund_amount_for(PaymentStatus.VOIDED, 579_000, late_capture=True) == 579_000
     with pytest.raises(RuleViolation):  # the flag only matters for VOIDED
         refund_amount_for(PaymentStatus.DECLINED, 579_000, late_capture=True)
@@ -45,12 +42,12 @@ def test_br4_refunded_is_terminal():
         assert not can_transition(PaymentStatus.REFUNDED, target)
 
 
-def test_br4_a_failed_or_declined_payment_can_never_become_captured():
+def test_br4_only_pending_can_become_captured():
     assert statuses_that_can_move_to(PaymentStatus.CAPTURED) == (PaymentStatus.PENDING,)
     assert NOTHING_TAKEN == {PaymentStatus.DECLINED, PaymentStatus.FAILED, PaymentStatus.VOIDED}
 
 
-def test_br4_refunded_comes_from_captured_or_a_late_capture_on_a_voided_payment():
+def test_br4_refunded_from_captured_or_voided():
     assert statuses_that_can_move_to(PaymentStatus.REFUNDED) == (PaymentStatus.CAPTURED, PaymentStatus.VOIDED)
 
 

@@ -1,5 +1,4 @@
-"""Make the generated OpenAPI document match what the service really returns:
-every 4xx/5xx is `application/problem+json` with the shared Problem schema."""
+"""Patches the generated OpenAPI doc so every 4xx/5xx is application/problem+json with our Problem schema."""
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 

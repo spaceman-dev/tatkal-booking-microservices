@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""Challenge 1 - concurrency control on the Tatkal seat quota.
+"""Challenge 1: fire N parallel bookings (default 20) at a new quota of CAPACITY seats (default 5).
 
-Fires N parallel booking requests (default 20) at a fresh quota of CAPACITY seats
-(default 5). A barrier releases all threads at the same instant. Expected with the
-real (atomic) implementation: exactly CAPACITY bookings CONFIRMED, every other
-request rejected with 409 SEATS_UNAVAILABLE, and the databases consistent.
+All threads wait on a barrier and go together. With the real (atomic) code CAPACITY bookings
+should be confirmed and the rest get 409 SEATS_UNAVAILABLE.
 
-    python scripts/challenge1_concurrency.py                   # atomic - the real code
+    python scripts/challenge1_concurrency.py                   # atomic (what the service really does)
     python scripts/challenge1_concurrency.py --strategy naive  # check-then-update, to show the race
     python scripts/challenge1_concurrency.py --strategy both   # naive first, then atomic
 """
@@ -36,24 +34,19 @@ from common import (
 TRAIN, CLASS, BASE_FARE = "12627", "SL", 90_500
 
 WHY = """
-Why a plain check-then-update in application code fails
-  available = SELECT available_seats ...     -- request A reads 5, request B reads 5
-  if available >= 1: ...                     -- both pass the check
-  UPDATE ... SET available_seats = 4         -- both write 4: one decrement is lost
-Every request that reads before the others write "sees" a free seat, so more holds
-are created than there are seats, and the counter stops matching the hold rows (a lost
-update). The CHECK (available_seats >= 0) constraint cannot catch this either: the
-counter never goes negative, it is simply wrong.
+why check-then-update in the application is not enough
+  A: SELECT available_seats -> 5          B: SELECT available_seats -> 5
+  A: 5 >= 1, UPDATE ... SET 4             B: 5 >= 1, UPDATE ... SET 4   (A's decrement is lost)
+  every request that reads before another one writes thinks a seat is free, so we oversell
+  and the counter stops matching the holds. CHECK (available_seats >= 0) does not catch it
+  because the counter never goes negative, it is just wrong.
 
-What inventory-service does instead (app/repository/inventory_repo.py)
+what inventory-service does (app/repository/inventory_repo.py)
   UPDATE seat_inventory SET available_seats = available_seats - :n
-   WHERE inventory_id = :id AND available_seats >= :n
-  RETURNING available_seats
-Check and write are a single statement. PostgreSQL row-locks the quota row; a
-concurrent UPDATE waits for the lock and then re-evaluates the WHERE clause against
-the committed value, so once the seats are gone the UPDATE matches no row and the
-request is rejected with 409 SEATS_UNAVAILABLE. The hold row is inserted in the same
-transaction, so counter and holds always agree.
+   WHERE inventory_id = :id AND available_seats >= :n RETURNING available_seats
+  check and write in one statement. postgres locks the row, a parallel UPDATE waits and then
+  re-checks the WHERE against the committed value, so once the seats are gone it updates
+  0 rows and we answer 409. the hold row is inserted in the same transaction.
 """
 
 
@@ -103,7 +96,7 @@ def run(out: Evidence, strategy: str, capacity: int, requests: int, seats: int) 
                           "SELECT status, failure_reason, count(*) AS bookings FROM bookings "
                           "WHERE train_no = %(t)s AND journey_date = %(d)s GROUP BY status, failure_reason "
                           "ORDER BY status", {"t": TRAIN, "d": run_date})
-    # No cross-database join: take the ids from booking-service, then ask payment-service's DB.
+    # no cross-db join: ids from booking_db first, then look them up in payment_db
     _, id_rows = query("booking-service", "SELECT booking_id FROM bookings WHERE train_no = %(t)s "
                                           "AND journey_date = %(d)s", {"t": TRAIN, "d": run_date})
     payments = show_query(out, "Payments for these bookings", "payment-service",
@@ -147,7 +140,7 @@ def main() -> None:
 
     out.section("result")
     if "naive" in verdicts:
-        out(f"  naive  (check-then-update): {'consistent?!' if verdicts['naive'] else 'OVERSOLD / inconsistent - the race is real'}")
+        out(f"  naive  (check-then-update): {'consistent?!' if verdicts['naive'] else 'OVERSOLD, counter and holds do not match'}")
     if "atomic" in verdicts:
         out(f"  atomic (conditional UPDATE): {'PASS - never over-allocated' if verdicts['atomic'] else 'FAIL'}")
     out(WHY)

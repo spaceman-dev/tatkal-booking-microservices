@@ -1,9 +1,7 @@
-"""End-to-end test of the main transaction - booking a Tatkal ticket across
-booking, inventory, payment and notification services - plus its failure paths.
+"""End-to-end tests of the main transaction (booking a Tatkal ticket across booking, inventory,
+payment and notification) and its failure paths, all through the public APIs.
 
-Every check goes through the services' public HTTP APIs, exactly as a client would.
-Needs the whole stack running:  python scripts/stack.py start
-Run with:                       .venv/bin/python -m pytest tests/e2e -v
+Needs the stack running (python scripts/stack.py start), then: .venv/bin/python -m pytest tests/e2e -v
 """
 import time
 import uuid

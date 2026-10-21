@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-"""Condition (e) - a dependency that can be slow or fail: the mock bank.
-
-Books one ticket through the normal API under each bank behaviour and shows what
-the passenger gets, how many attempts payment-service made, and that the bank
-never captured a booking twice.
+"""Books one ticket under each mock-bank mode (normal, slow, down, flaky) and shows what the
+passenger gets, how many attempts payment-service made and how many captures the bank recorded.
 
     python scripts/bank_failure_modes.py
 """
@@ -82,7 +79,7 @@ def main() -> None:
     out("           released. No booking is ever captured twice.")
 
     checks.append(("normal: confirmed in one attempt", normal["outcome"] == "CONFIRMED" and normal["attempts"] == 1))
-    checks.append(("slow: confirmed after a retry, captured exactly once",
+    checks.append(("slow: confirmed after a retry, captured once",
                    slow["outcome"] == "CONFIRMED" and slow["attempts"] >= 2 and slow["bank_captures"] == 1))
     checks.append(("down: 503 PAYMENT_UNAVAILABLE, payment FAILED, seats released",
                    down["http"] == 503 and down["payment"] == "FAILED" and down["hold"] == "RELEASED"))

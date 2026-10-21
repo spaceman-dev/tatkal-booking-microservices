@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-"""Challenge 3C - saga with compensation.
+"""Challenge 3C: the booking saga (hold seats -> charge -> confirm seats -> notify) with failures.
 
-The booking saga is orchestrated by booking-service:
-    1 HOLD_SEATS (inventory)  ->  2 CHARGE_PAYMENT (payment)  ->  3 CONFIRM_SEATS (inventory)  -> notify (async)
-
-Scenarios
   1. happy path, for comparison
-  2. failure forced at step 3: compensations refund the payment (undo 2) and release the seats (undo 1)
-  3. failure at step 2 (bank declines): only the seats need releasing
-  4. a compensation that itself fails: step 3 fails while the bank is down, so the refund cannot run;
-     the booking waits in COMPENSATING and the recovery job finishes it once the bank is back
-Finally every booking of the run is checked across all four databases.
+  2. confirm (step 3) forced to fail: refund (undo 2) and release (undo 1)
+  3. bank declines (step 2): only the release is needed
+  4. step 3 fails while the bank's refund API is down: booking stays COMPENSATING until the
+     recovery job finishes the refund
+At the end every booking of the run is checked in all four databases.
 
     python scripts/challenge3_saga.py
     python scripts/challenge3_saga.py --skip-recovery     # leave out scenario 4 (it waits ~30 s)
@@ -51,7 +47,7 @@ def book(client, run_date, passengers, payer="asha@okmock", correlation_id=None)
 
 
 def trace(out, correlation_id):
-    """Every log line, from every service, that carries this correlation id - in time order."""
+    """All log lines with this correlation id from every service, oldest first."""
     services = ("booking-service", "inventory-service", "payment-service", "mock-bank-gateway", "notification-service")
     entries = sorted((e for s in services for e in log_lines(s, correlation_id=correlation_id)), key=lambda e: e["ts"])
     for entry in entries:
@@ -79,7 +75,7 @@ def show_saga_log(out, client, booking_id):
 
 
 def show_state(out, booking_id):
-    """Where the seats and the money are for one booking, read from each service's own database."""
+    """Hold and payment of one booking, read from each service's own database."""
     b = {"b": booking_id}
     show_query(out, "booking", "booking-service",
                "SELECT status, failure_reason, amount_paise, refund_paise, pnr FROM bookings WHERE booking_id = %(b)s", b)
@@ -125,7 +121,7 @@ def main() -> None:
     out(f"quota opened: train {TRAIN}, {run_date}, class {CLASS}, {SEATS} seats")
     checks = []
 
-    # ---- 1. happy path ----------------------------------------------------------------
+    # 1. happy path
     out.section("1. happy path")
     r, data = book(client, run_date, [("Asha Rao", 34, "F")])
     show_response(out, r, data)
@@ -134,7 +130,7 @@ def main() -> None:
                    r.status_code == 201 and [s[0] for s in steps] == ["HOLD_SEATS", "CHARGE_PAYMENT", "CONFIRM_SEATS"]))
     quota_line(out, client, run_date)
 
-    # ---- 2. failure at step 3 -----------------------------------------------------------
+    # 2. failure at step 3
     out.section("2. failure forced at step 3 (CONFIRM_SEATS)")
     out("  arming fault: the next 2 confirm calls fail with HTTP 500 (booking-service retries once)")
     client.post(f"{INVENTORY}/api/v1/admin/faults", json={"operation": "confirm_hold", "times": 2, "status_code": 500})
@@ -157,7 +153,7 @@ def main() -> None:
     checks.append(("2: payment REFUNDED and refund SUCCEEDED", pay == [("REFUNDED", "SUCCEEDED")]))
     checks.append(("2: hold RELEASED and seats back in the quota", hold == [("RELEASED",)] and q["available_seats"] == SEATS - 1))
 
-    # ---- 3. failure at step 2 -----------------------------------------------------------
+    # 3. failure at step 2
     out.section("3. failure at step 2 (bank declines the payment)")
     r, data = book(client, run_date, [("Kiran Das", 41, "M")], payer="decline@okmock")
     show_response(out, r, data)
@@ -168,7 +164,7 @@ def main() -> None:
         "RELEASE_SEATS", "COMPENSATE", "OK") and not any(s[0] == "REFUND_PAYMENT" for s in steps)))
     checks.append(("3: seats back in the quota", q["available_seats"] == SEATS - 1))
 
-    # ---- 4. compensation that fails, finished by the recovery job ----------------------
+    # 4. compensation that fails, finished by the recovery job
     if not args.skip_recovery:
         out.section("4. step 3 fails while the bank's refund API is DOWN, so the refund cannot run yet")
         out("  bank: partial outage - charges work, refunds return 503;  inventory: next 2 confirms fail")
@@ -195,7 +191,7 @@ def main() -> None:
         checks.append(("4: recovery job completed the refund, booking FAILED",
                        final == "FAILED" and pay == [("REFUNDED", "SUCCEEDED")]))
 
-    # ---- consistency across all services ------------------------------------------------
+    # consistency across all services
     out.section("consistency check for every booking of this run")
     time.sleep(3)  # let the outbox deliver the notifications
     _, bookings = query("booking-service", "SELECT booking_id, status, amount_paise, refund_paise FROM bookings "

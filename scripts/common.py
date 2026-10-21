@@ -1,9 +1,8 @@
-"""Helpers shared by the challenge scripts and the e2e test.
+"""Shared helpers for the challenge scripts and the e2e test.
 
-The scripts talk to the services over HTTP like any client. To *prove* what
-happened they also read each service's database - read-only, with that service's
-own credentials (taken from its .env). That is test tooling only; no service
-ever reads another service's database.
+The scripts call the services over HTTP like any client. For the evidence they also read
+each service's database (read-only, with that service's own credentials from its .env).
+Only these scripts do that, the services never touch each other's databases.
 """
 import json
 import os
@@ -42,8 +41,7 @@ def check_services_up() -> None:
         sys.exit(f"Not running: {', '.join(missing)}. Start everything with: python scripts/stack.py start")
 
 
-# ---- reading a service's own database (evidence only) -----------------------------
-
+# reading a service's own database (evidence only)
 def _dsn(service: str) -> str:
     env_file = ROOT / "services" / service / ".env"
     if not env_file.exists():
@@ -68,8 +66,7 @@ def show_query(out, title: str, service: str, sql: str, params: dict | None = No
     return rows
 
 
-# ---- output ---------------------------------------------------------------------
-
+# output
 def table(out, headers: list[str], rows: list) -> None:
     cells = [[_fmt(v) for v in row] for row in rows]
     widths = [max(len(h), *(len(r[i]) for r in cells)) if cells else len(h) for i, h in enumerate(headers)]
@@ -144,8 +141,7 @@ def git_commit() -> str:
         return "n/a"
 
 
-# ---- logs -----------------------------------------------------------------------
-
+# logs
 def log_lines(service: str, *, contains: str | None = None, correlation_id: str | None = None,
               since: datetime | None = None) -> list[dict]:
     path = ROOT / "logs" / f"{service}.log"
@@ -176,8 +172,7 @@ def compact_log(entry: dict) -> str:
             f"{entry['msg']}  {extra}").rstrip()
 
 
-# ---- test data ------------------------------------------------------------------
-
+# test data
 def fresh_run_date() -> date:
     """A journey date far in the future that no other run uses, so every run has its own quota."""
     return date.today() + timedelta(days=random.randint(400, 30_000))

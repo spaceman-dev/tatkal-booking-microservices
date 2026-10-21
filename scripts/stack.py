@@ -30,7 +30,7 @@ LOG_DIR = ROOT / "logs"
 RUN_DIR = ROOT / ".run"
 TOOLS_VENV = ROOT / ".venv"
 
-# Start order: the external mock first, the orchestrator last.
+# mock bank first, booking (the orchestrator) last
 SERVICES = ["mock-bank-gateway", "inventory-service", "payment-service", "notification-service", "booking-service"]
 WINDOWS = os.name == "nt"
 
@@ -83,8 +83,8 @@ def process_cwd(pid: int) -> Path | None:
 
 
 def is_service_process(pid: int, service: str) -> bool:
-    """True only if `pid` is this service's `python -m app`. Once a service has died,
-    the OS can hand its number to any other program, so a pid file alone is not proof."""
+    """Is `pid` really this service's `python -m app`? After a crash or reboot the OS can
+    give the same pid to some other program."""
     folder = SERVICES_DIR / service
     try:
         if WINDOWS:
@@ -120,8 +120,7 @@ def running_pid(service: str) -> int | None:
     return None
 
 
-# ---- commands --------------------------------------------------------------------
-
+# commands
 def cmd_setup(_args) -> None:
     if sys.version_info < (3, 11):
         sys.exit("Python 3.11 or newer is required")

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Live demo of the main transaction for the video (macOS / Linux, bash).
-# Shows each command before running it and waits for Enter between steps.
-# Every run opens a fresh 2-seat quota on a random future date, so it can be repeated.
+# Step-by-step walk through the main flow with curl (macOS / Linux, bash).
+# Prints each command before running it and waits for Enter between steps.
+# Each run opens its own 2-seat quota on a random future date, so it can be rerun.
 #
 #   python scripts/stack.py start      # first
 #   bash scripts/demo_flow.sh

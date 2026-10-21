@@ -65,7 +65,7 @@ def main() -> None:
     body = booking_body(TRAIN, run_date, CLASS, PASSENGERS, email="asha@example.com")
     checks = []
 
-    # ---- A ---------------------------------------------------------------------------
+    # A
     key_a = f"c2-seq-{uuid.uuid4()}"
     out.section(f"A. same key, same body, three times in a row   Idempotency-Key: {key_a}")
     responses = []
@@ -78,7 +78,7 @@ def main() -> None:
     checks.append(("A: 2nd and 3rd marked Idempotent-Replayed",
                    [r.headers.get("idempotent-replayed") for r in responses] == [None, "true", "true"]))
 
-    # ---- B ---------------------------------------------------------------------------
+    # B
     key_b = f"c2-fail-{uuid.uuid4()}"
     out.section(f"B. a FAILED request is replayed too (declined payment)   Idempotency-Key: {key_b}")
     declined = booking_body(TRAIN, run_date, CLASS, [("Kiran Das", 41, "M")], payer_ref="decline@okmock")
@@ -93,7 +93,7 @@ def main() -> None:
                    first.status_code == second.status_code == 402 and first.content == second.content))
     checks.append(("B: the bank was not asked again on the repeat", gateway_after == gateway_mid))
 
-    # ---- C ---------------------------------------------------------------------------
+    # C
     out.section("C. same key as A but a different body (one passenger instead of two)")
     other = booking_body(TRAIN, run_date, CLASS, PASSENGERS[:1], email="asha@example.com")
     reused = client.post(f"{BOOKING}/api/v1/bookings", json=other, headers={"Idempotency-Key": key_a})
@@ -101,7 +101,7 @@ def main() -> None:
     checks.append(("C: key reuse with a different body rejected with 422",
                    reused.status_code == 422 and reused.json()["code"] == "IDEMPOTENCY_KEY_REUSED"))
 
-    # ---- D ---------------------------------------------------------------------------
+    # D
     key_d = f"c2-par-{uuid.uuid4()}"
     parallel = 10
     out.section(f"D. {parallel} identical requests released at the same instant   Idempotency-Key: {key_d}")
@@ -123,16 +123,16 @@ def main() -> None:
     originals = sum(1 for row in rows if row[5] == "-")
     out(f"  distinct bookings: {len(booking_d)}   original responses: {originals}   replays: {parallel - originals}")
     checks.append(("D: one booking for 10 simultaneous requests", len(booking_d) == 1))
-    checks.append(("D: exactly one original, nine replays", originals == 1))
+    checks.append(("D: one original, nine replays", originals == 1))
     checks.append(("D: all ten bodies identical", len({content for _, content in results}) == 1))
 
-    # ---- E ---------------------------------------------------------------------------
+    # E
     out.section("E. no Idempotency-Key header")
     missing = client.post(f"{BOOKING}/api/v1/bookings", json=body)
     out(f"  HTTP {missing.status_code}  {missing.text}")
     checks.append(("E: missing key rejected with 400", missing.status_code == 400))
 
-    # ---- F ---------------------------------------------------------------------------
+    # F
     out.section("F. payment-service on its own: same key twice, then a new key for the same booking (BR4)")
     pay_booking = str(uuid.uuid4())
     charge = {"booking_id": pay_booking, "amount_paise": 289_500, "currency": "INR", "method": "UPI",
@@ -150,7 +150,7 @@ def main() -> None:
     checks.append(("F: new key for same booking refused (409, BR4)",
                    p3.status_code == 409 and p3.json()["code"] == "PAYMENT_ALREADY_EXISTS"))
 
-    # ---- database evidence -------------------------------------------------------------
+    # database evidence
     out.section("database state")
     time.sleep(0.5)
     keys = [key_a, key_b, key_d]
@@ -170,11 +170,11 @@ def main() -> None:
     stats = client.get(f"{GATEWAY}/gateway/v1/stats").json()["captures_per_reference"]
     out("\nCaptures recorded by the bank gateway per booking   [mock-bank-gateway /stats]")
     table(out, ["booking_id", "captures"], [(b, stats.get(str(b), 0)) for b in booking_ids])
-    checks.append(("DB: exactly one booking per key", len(booking_ids) == len(keys)))
+    checks.append(("DB: one booking per key", len(booking_ids) == len(keys)))
     checks.append(("DB: at most one payment per booking", len(payments) == len({p[0] for p in payments})))
     checks.append(("gateway: at most one capture per booking", all(stats.get(str(b), 0) <= 1 for b in booking_ids)))
 
-    # ---- logs --------------------------------------------------------------------------
+    # logs
     out.section("log lines showing the replays (logs/booking-service.log)")
     replay_logs = [e for e in log_lines("booking-service", since=started)
                    if e.get("idempotency_key") in keys]

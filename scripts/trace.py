@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print every log line, from every service, that carries one correlation id - in time order.
+"""Prints all log lines for one correlation id, from every service, in time order.
 
     python scripts/trace.py demo-happy-path
     python scripts/trace.py <correlation-id> --json      # raw JSON lines

@@ -8,12 +8,16 @@
      - first request already COMPLETED    -> replay the stored response
      - first request still IN_PROGRESS    -> wait for it, then replay
    If the first request died (its lease ran out) the next one takes over.
+
+Every claim carries an owner token, so a request whose lease ran out can no longer
+overwrite or delete the record of the request that took over from it.
 """
 import hashlib
 import json
 import logging
 import re
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Callable
@@ -54,6 +58,7 @@ def fingerprint(method: str, path: str, payload: dict) -> str:
 @dataclass
 class Claim:
     owner: bool
+    token: str | None = None
     status_code: int | None = None
     body_text: str | None = None
 
@@ -70,16 +75,17 @@ class IdempotencyStore:
         deadline = time.monotonic() + self.wait_seconds
         announced_wait = False
         while True:
+            token = uuid.uuid4().hex
             with self.engine.begin() as conn:
                 won = conn.execute(
                     pg_insert(keys)
                     .values(idem_key=key, request_hash=request_hash, status="IN_PROGRESS",
-                            locked_until=func.now() + self.lease)
+                            owner_token=token, locked_until=func.now() + self.lease)
                     .on_conflict_do_nothing(index_elements=[keys.c.idem_key])
                     .returning(keys.c.idem_key)
                 ).first()
                 if won:
-                    return Claim(owner=True)
+                    return Claim(owner=True, token=token)
 
                 row = conn.execute(select(keys).where(keys.c.idem_key == key)).mappings().first()
                 if row is not None:
@@ -99,13 +105,13 @@ class IdempotencyStore:
                         update(keys)
                         .where(keys.c.idem_key == key, keys.c.status == "IN_PROGRESS",
                                keys.c.locked_until < func.now())
-                        .values(locked_until=func.now() + self.lease, updated_at=func.now())
+                        .values(owner_token=token, locked_until=func.now() + self.lease, updated_at=func.now())
                         .returning(keys.c.idem_key)
                     ).first()
                     if took_over:
                         log.warning("earlier attempt with this key timed out, taking over",
                                     extra={"idempotency_key": key})
-                        return Claim(owner=True)
+                        return Claim(owner=True, token=token)
 
             if not announced_wait:
                 log.info("same idempotency key is being processed, waiting for its result",
@@ -118,19 +124,25 @@ class IdempotencyStore:
                                headers={"Retry-After": "2"})
             time.sleep(self.poll_seconds)
 
-    def complete(self, key: str, status_code: int, body_text: str, resource_id: str | None) -> None:
+    def complete(self, key: str, token: str, status_code: int, body_text: str, resource_id: str | None) -> bool:
         with self.engine.begin() as conn:
-            conn.execute(
+            stored = conn.execute(
                 update(keys)
-                .where(keys.c.idem_key == key)
+                .where(keys.c.idem_key == key, keys.c.owner_token == token, keys.c.status == "IN_PROGRESS")
                 .values(status="COMPLETED", response_code=status_code, response_body=body_text,
                         resource_id=resource_id, updated_at=func.now())
-            )
+            ).rowcount == 1
+        if not stored:
+            log.warning("lost ownership of the idempotency key before finishing; response not stored",
+                        extra={"idempotency_key": key})
+        return stored
 
-    def release(self, key: str) -> None:
-        """Forget an IN_PROGRESS key after an unexpected crash so the client can retry."""
+    def release(self, key: str, token: str) -> None:
+        """Give the key back (after an unexpected error, or an answer that is not final)
+        so the client can retry with it."""
         with self.engine.begin() as conn:
-            conn.execute(delete(keys).where(keys.c.idem_key == key, keys.c.status == "IN_PROGRESS"))
+            conn.execute(delete(keys).where(keys.c.idem_key == key, keys.c.owner_token == token,
+                                            keys.c.status == "IN_PROGRESS"))
 
 
 def run_idempotent(store: IdempotencyStore, key: str, request_hash: str, path: str,
@@ -142,20 +154,27 @@ def run_idempotent(store: IdempotencyStore, key: str, request_hash: str, path: s
     try:
         status_code, body = action()
     except AppError as err:
+        if not err.final:
+            # True only for now (e.g. "still in progress"): answer, but keep nothing for the key.
+            store.release(key, claim.token)
+            return _response(err.status, json.dumps(err.to_problem(path), separators=(",", ":")),
+                              replayed=False, headers=err.headers)
         # Business failures (declined, sold out...) are final answers and are stored too.
         status_code, body = err.status, err.to_problem(path)
     except Exception:
-        store.release(key)
+        store.release(key, claim.token)
         raise
 
     body = jsonable_encoder(body)
     body_text = json.dumps(body, separators=(",", ":"))
     resource_id = body.get(resource_field)
-    store.complete(key, status_code, body_text, resource_id=str(resource_id) if resource_id else None)
+    store.complete(key, claim.token, status_code, body_text, resource_id=str(resource_id) if resource_id else None)
     return _response(status_code, body_text, replayed=False)
 
 
-def _response(status_code: int, body_text: str, replayed: bool) -> Response:
-    headers = {REPLAY_HEADER: "true"} if replayed else None
+def _response(status_code: int, body_text: str, replayed: bool, headers: dict | None = None) -> Response:
+    headers = dict(headers or {})
+    if replayed:
+        headers[REPLAY_HEADER] = "true"
     media_type = PROBLEM_MEDIA_TYPE if status_code >= 400 else "application/json"
-    return Response(content=body_text, status_code=status_code, headers=headers, media_type=media_type)
+    return Response(content=body_text, status_code=status_code, headers=headers or None, media_type=media_type)

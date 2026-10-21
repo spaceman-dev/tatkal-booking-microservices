@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
 
-from app.api.schemas import ChargeIn, PaymentOut, RefundIn
+from app.api.schemas import ChargeIn, PaymentOut, RefundIn, VoidIn
 from app.core.errors import AppError
 from app.services.idempotency import IdempotencyStore, fingerprint, require_key, run_idempotent
 from app.services.payments import PaymentService
@@ -57,6 +57,21 @@ def create_payment(
     return run_idempotent(store, key, request_hash, request.url.path, action, resource_field="payment_id")
 
 
+@router.post(
+    "/payments/void",
+    response_model=PaymentOut,
+    summary="Void the payment of a booking (compensation when no payment is visible yet)",
+    description=(
+        "If the booking has no payment yet, records a VOIDED one (failure_reason VOIDED_BEFORE_CHARGE), so a "
+        "charge request still on its way is refused by UNIQUE(booking_id) and never reaches the bank. If the "
+        "booking already has a payment, it is returned unchanged and can be refunded as usual. Safe to repeat."
+    ),
+)
+def void_payment(body: VoidIn, payments: PaymentService = Depends(payment_service)):
+    return payments.void_for_booking(body.booking_id, body.amount_paise, body.currency, body.method,
+                                     body.payer_ref)
+
+
 @router.get("/payments", response_model=list[PaymentOut], summary="Find the payment of a booking")
 def find_payments(booking_id: UUID = Query(...), payments: PaymentService = Depends(payment_service)):
     payment = payments.find_by_booking(booking_id)
@@ -83,7 +98,8 @@ def get_payment(payment_id: UUID, payments: PaymentService = Depends(payment_ser
     responses={
         404: {"description": "No such payment (PAYMENT_NOT_FOUND)"},
         409: {"description": "Nothing was taken, nothing to refund (PAYMENT_NOT_REFUNDABLE)"},
-        503: {"description": "Gateway did not confirm; safe to retry (REFUND_PENDING / GATEWAY_UNAVAILABLE)"},
+        503: {"description": "Charge still in flight (PAYMENT_IN_PROGRESS) or the gateway did not confirm "
+                             "(REFUND_PENDING / GATEWAY_UNAVAILABLE); safe to retry"},
     },
 )
 def refund_payment(payment_id: UUID, body: RefundIn | None = None,

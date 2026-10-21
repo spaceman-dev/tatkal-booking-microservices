@@ -24,6 +24,18 @@ class RefundIn(BaseModel):
     reason: str = Field(default="UNSPECIFIED", pattern=r"^[A-Z_]{3,40}$", examples=["SEAT_CONFIRMATION_FAILED"])
 
 
+class VoidIn(BaseModel):
+    """Same details as the charge, so the VOIDED record looks like the payment that never happened."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    booking_id: UUID
+    amount_paise: int = Field(gt=0)
+    currency: Literal["INR"] = "INR"
+    method: Literal["UPI", "CARD"]
+    payer_ref: str = Field(min_length=3, max_length=64)
+
+
 class RefundOut(BaseModel):
     refund_id: UUID
     amount_paise: int

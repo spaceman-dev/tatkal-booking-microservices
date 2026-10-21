@@ -89,3 +89,36 @@ def test_same_booking_with_different_keys_is_still_charged_once(engine):
     assert outcomes.count("PAYMENT_ALREADY_EXISTS") == 4
     assert count_payments(engine, booking_id) == 1
     assert len(gateway_calls) == 1
+
+
+def test_a_request_that_lost_its_key_cannot_overwrite_the_new_owner(engine):
+    store = IdempotencyStore(engine, lease_seconds=0, wait_seconds=2, poll_seconds=0.05)
+    key, request_hash = f"test-{uuid.uuid4()}", "a" * 64
+    slow = store.claim(key, request_hash)   # its lease runs out at once...
+    taken = store.claim(key, request_hash)  # ...so the next request takes the key over
+    assert slow.owner and taken.owner and slow.token != taken.token
+
+    assert store.complete(key, slow.token, 201, '{"payment_id":"slow"}', None) is False
+    assert store.complete(key, taken.token, 201, '{"payment_id":"new-owner"}', None) is True
+    store.release(key, slow.token)  # must not delete the stored result either
+
+    replay = store.claim(key, request_hash)
+    assert not replay.owner and replay.body_text == '{"payment_id":"new-owner"}'
+
+
+def test_an_answer_that_is_only_true_for_now_is_not_stored(engine):
+    store = IdempotencyStore(engine, lease_seconds=60, wait_seconds=2, poll_seconds=0.05)
+    key, request_hash = f"test-{uuid.uuid4()}", "b" * 64
+    answers = [AppError(409, "IDEMPOTENCY_REQUEST_IN_PROGRESS", "Still being processed",
+                        headers={"Retry-After": "5"}, final=False)]
+
+    def action():
+        if answers:
+            raise answers.pop()
+        return 201, {"payment_id": "p-1"}
+
+    first = run_idempotent(store, key, request_hash, "/api/v1/payments", action, resource_field="payment_id")
+    second = run_idempotent(store, key, request_hash, "/api/v1/payments", action, resource_field="payment_id")
+
+    assert first.status_code == 409 and first.headers["Retry-After"] == "5"
+    assert second.status_code == 201 and "Idempotent-Replayed" not in second.headers

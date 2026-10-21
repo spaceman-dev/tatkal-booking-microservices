@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from sqlalchemy import func, insert, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Connection
 
 from app.repository.tables import payments, refunds
@@ -11,6 +12,25 @@ def insert_payment(conn: Connection, payment_id: UUID, booking_id: UUID, amount_
     conn.execute(insert(payments).values(
         payment_id=payment_id, booking_id=booking_id, amount_paise=amount_paise, currency=currency,
         method=method, payer_ref=payer_ref, status="PENDING"))
+
+
+def insert_voided_if_absent(conn: Connection, payment_id: UUID, booking_id: UUID, amount_paise: int,
+                            currency: str, method: str, payer_ref: str) -> bool:
+    """Records a VOIDED payment for a booking that has none. Uses the same
+    UNIQUE(booking_id) as a real charge, so whichever comes first wins: a later
+    charge for this booking is refused before it reaches the bank."""
+    row = conn.execute(
+        pg_insert(payments)
+        .values(payment_id=payment_id, booking_id=booking_id, amount_paise=amount_paise, currency=currency,
+                method=method, payer_ref=payer_ref, status="VOIDED", failure_reason="VOIDED_BEFORE_CHARGE")
+        .on_conflict_do_nothing(index_elements=[payments.c.booking_id])
+        .returning(payments.c.payment_id)
+    ).first()
+    return row is not None
+
+
+def get_status(conn: Connection, payment_id: UUID) -> str | None:
+    return conn.execute(select(payments.c.status).where(payments.c.payment_id == payment_id)).scalar()
 
 
 def get_payment(conn: Connection, payment_id: UUID) -> dict | None:
@@ -37,6 +57,10 @@ def set_status(conn: Connection, payment_id: UUID, from_statuses: tuple[str, ...
 def record_attempts(conn: Connection, payment_id: UUID, attempts: int) -> None:
     conn.execute(update(payments).where(payments.c.payment_id == payment_id)
                  .values(gateway_attempts=payments.c.gateway_attempts + attempts, updated_at=func.now()))
+
+
+def set_fields(conn: Connection, payment_id: UUID, **fields) -> None:
+    conn.execute(update(payments).where(payments.c.payment_id == payment_id).values(updated_at=func.now(), **fields))
 
 
 def get_refund_for_payment(conn: Connection, payment_id: UUID) -> dict | None:

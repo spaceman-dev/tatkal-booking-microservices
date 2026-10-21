@@ -47,7 +47,10 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Payment Service", version="1.0.0", description=DESCRIPTION.strip(), lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = engine
-    app.state.payments = PaymentService(engine, gateway)
+    # Longest a charge can keep sending attempts: every attempt's timeout plus the largest backoff, plus margin.
+    charge_window = settings.gateway_max_attempts * (settings.gateway_timeout_seconds
+                                                     + settings.gateway_backoff_cap_seconds) + 10
+    app.state.payments = PaymentService(engine, gateway, charge_window)
     app.state.idempotency = IdempotencyStore(engine, settings.idempotency_lease_seconds,
                                              settings.idempotency_wait_seconds)
 

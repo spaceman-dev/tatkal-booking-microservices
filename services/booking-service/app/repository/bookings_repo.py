@@ -29,6 +29,11 @@ def get_booking(conn: Connection, booking_id: UUID) -> dict | None:
     return booking
 
 
+def get_booking_by_idempotency_key(conn: Connection, key: str) -> dict | None:
+    booking_id = conn.execute(select(bookings.c.booking_id).where(bookings.c.idempotency_key == key)).scalar()
+    return get_booking(conn, booking_id) if booking_id else None
+
+
 def list_bookings(conn: Connection, status: str | None, train_no: str | None, journey_date, limit: int) -> list[dict]:
     query = select(bookings.c.booking_id).order_by(bookings.c.created_at.desc()).limit(limit)
     if status:

@@ -9,6 +9,7 @@ Outcome kinds:
   rejected                         - the gateway refused the request (4xx); not retried
   unavailable                      - the request certainly did not get processed
   timeout                          - we sent it but never heard back: outcome UNKNOWN
+  cancelled                        - the payment was closed by someone else; no further attempt sent
 """
 import logging
 import random
@@ -60,8 +61,9 @@ class GatewayClient:
     def close(self) -> None:
         self.http.close()
 
-    def charge(self, idempotency_key: str, payload: dict) -> GatewayOutcome:
-        outcome = self._post_with_retries("/gateway/v1/charges", idempotency_key, payload)
+    def charge(self, idempotency_key: str, payload: dict,
+               still_wanted: Callable[[], bool] | None = None) -> GatewayOutcome:
+        outcome = self._post_with_retries("/gateway/v1/charges", idempotency_key, payload, still_wanted)
         if outcome.kind == "ok":
             outcome.kind = "captured" if outcome.body["status"] == "captured" else "declined"
         return outcome
@@ -80,10 +82,15 @@ class GatewayClient:
         found = response.json()
         return found[0] if found else None
 
-    def _post_with_retries(self, path: str, idempotency_key: str, payload: dict) -> GatewayOutcome:
+    def _post_with_retries(self, path: str, idempotency_key: str, payload: dict,
+                           still_wanted: Callable[[], bool] | None = None) -> GatewayOutcome:
         maybe_processed = False
         detail = None
         for attempt in range(1, self.max_attempts + 1):
+            if still_wanted is not None and not still_wanted():
+                log.warning("payment was closed meanwhile, not sending another attempt",
+                            extra={"path": path, "attempt": attempt, "idempotency_key": idempotency_key})
+                return GatewayOutcome("cancelled", None, attempt - 1, f"closed before attempt {attempt}")
             try:
                 response = self.http.post(path, json=payload, headers={"Idempotency-Key": idempotency_key})
             except (httpx.ConnectTimeout, httpx.PoolTimeout, httpx.ConnectError) as exc:

@@ -50,6 +50,8 @@ bookings = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     UniqueConstraint("pnr", name="uq_bookings_pnr"),
+    # One booking per Idempotency-Key, even if a key is taken over after a crash.
+    UniqueConstraint("idempotency_key", name="uq_bookings_idempotency_key"),
     CheckConstraint("passenger_count BETWEEN 1 AND 4", name="ck_bookings_passenger_count"),
     CheckConstraint(
         "status IN ('PENDING','SEATS_HELD','PAYMENT_DONE','CONFIRMED','COMPENSATING','FAILED','CANCELLED')",
@@ -89,6 +91,7 @@ idempotency_keys = Table(
     Column("idem_key", String(100), primary_key=True),
     Column("request_hash", String(64), nullable=False),
     Column("status", String(12), nullable=False),
+    Column("owner_token", String(32), nullable=False),
     Column("response_code", Integer),
     Column("response_body", Text),
     Column("resource_id", String(64)),

@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import httpx
@@ -26,9 +27,11 @@ def gateway_key(payment_id: UUID) -> str:
 
 
 class PaymentService:
-    def __init__(self, engine: Engine, gateway: GatewayClient):
+    def __init__(self, engine: Engine, gateway: GatewayClient, charge_window_seconds: float = 30):
         self.engine = engine
         self.gateway = gateway
+        # Longest a charge() call can still be sending attempts to the bank.
+        self.charge_window = timedelta(seconds=charge_window_seconds)
 
     # ---- charge (saga step 2) -------------------------------------------------
 
@@ -44,7 +47,8 @@ class PaymentService:
                 raise
             existing = self.find_by_booking(booking_id)
             log.warning("second payment attempt for the same booking refused",
-                        extra={"booking_id": str(booking_id), "payment_id": str(existing["payment_id"])})
+                        extra={"booking_id": str(booking_id), "payment_id": str(existing["payment_id"]),
+                               "existing_status": existing["status"]})
             raise AppError(409, "PAYMENT_ALREADY_EXISTS", "Booking already has a payment",
                            f"Booking {booking_id} already has payment {existing['payment_id']} "
                            f"({existing['status']}); it will not be charged again",
@@ -56,16 +60,25 @@ class PaymentService:
         outcome = self.gateway.charge(gateway_key(payment_id), {
             "amount_paise": amount_paise, "currency": currency, "method": method,
             "payer_ref": payer_ref, "merchant_reference": str(booking_id),
-        })
+        }, still_wanted=lambda: self._still_pending(payment_id))
         return self._apply_charge_outcome(payment_id, outcome)
+
+    def _still_pending(self, payment_id: UUID) -> bool:
+        with self.engine.connect() as conn:
+            return repo.get_status(conn, payment_id) == PaymentStatus.PENDING
 
     def _apply_charge_outcome(self, payment_id: UUID, outcome: GatewayOutcome) -> tuple[int, dict]:
         pending = rules.statuses_that_can_move_to(PaymentStatus.CAPTURED)
+        late_capture = False
         with self.engine.begin() as conn:
             repo.record_attempts(conn, payment_id, outcome.attempts)
             if outcome.kind == "captured":
-                repo.set_status(conn, payment_id, pending, PaymentStatus.CAPTURED,
-                                gateway_charge_id=outcome.body["charge_id"])
+                moved = repo.set_status(conn, payment_id, pending, PaymentStatus.CAPTURED,
+                                        gateway_charge_id=outcome.body["charge_id"])
+                if not moved:
+                    # The payment was closed (voided) while this attempt was at the bank.
+                    late_capture = True
+                    repo.set_fields(conn, payment_id, gateway_charge_id=outcome.body["charge_id"])
             elif outcome.kind == "declined":
                 repo.set_status(conn, payment_id, pending, PaymentStatus.DECLINED,
                                 gateway_charge_id=outcome.body["charge_id"],
@@ -74,9 +87,13 @@ class PaymentService:
                 repo.set_status(conn, payment_id, pending, PaymentStatus.FAILED,
                                 failure_reason="GATEWAY_UNAVAILABLE" if outcome.kind == "unavailable"
                                 else "GATEWAY_REJECTED")
-            else:  # timeout: we do not know - leave PENDING for reconciliation
+            elif outcome.kind == "timeout":  # we do not know - leave PENDING for reconciliation
                 repo.set_status(conn, payment_id, (PaymentStatus.PENDING,), PaymentStatus.PENDING,
                                 failure_reason="GATEWAY_TIMEOUT")
+            # "cancelled": closed by someone else before another attempt was sent; nothing to record
+
+        if late_capture:
+            self._refund_late_capture(payment_id)
 
         payment = self.get(payment_id)
         status = payment["status"]
@@ -92,24 +109,48 @@ class PaymentService:
             raise AppError(503, "GATEWAY_UNAVAILABLE", "Bank gateway unavailable",
                            f"The gateway could not be reached after {outcome.attempts} attempt(s); "
                            "no money was taken", payment_id=payment_id, payment_status=status)
+        if status in (PaymentStatus.VOIDED, PaymentStatus.REFUNDED):
+            raise AppError(409, "PAYMENT_CANCELLED", "Payment was cancelled",
+                           "The payment was cancelled while it was being processed; no money is kept.",
+                           payment_id=payment_id, payment_status=status)
         raise AppError(504, "PAYMENT_OUTCOME_UNKNOWN", "Payment outcome unknown",
                        "The gateway did not answer in time. The payment stays PENDING until it is "
                        "reconciled; refunding it is safe.", payment_id=payment_id, payment_status=status)
+
+    def _refund_late_capture(self, payment_id: UUID) -> None:
+        """Last line of defence: money arrived for a payment we had already voided."""
+        payment = self.get(payment_id)
+        log.error("charge captured after the payment was voided - refunding it now",
+                  extra={"payment_id": str(payment_id), "booking_id": str(payment["booking_id"]),
+                         "gateway_charge_id": payment["gateway_charge_id"]})
+        self._get_or_create_refund(payment_id, payment["amount_paise"], "LATE_CAPTURE")
+        try:
+            self.refund(payment_id, "LATE_CAPTURE")
+        except AppError as err:
+            log.error("late capture not refunded yet - POST /api/v1/payments/{id}/refund retries it",
+                      extra={"payment_id": str(payment_id), "error_code": err.code})
 
     # ---- refund (compensation of step 2) -------------------------------------
 
     def refund(self, payment_id: UUID, reason: str) -> dict:
         payment = self._get_or_404(payment_id)
         if payment["status"] == PaymentStatus.PENDING:
+            if self._charge_in_flight(payment):
+                raise AppError(503, "PAYMENT_IN_PROGRESS", "Payment still being processed",
+                               "A charge for this payment may still reach the bank, so its outcome cannot be "
+                               "settled yet. Retry later.", headers={"Retry-After": "5"}, payment_id=payment_id)
             payment = self._reconcile(payment)
         if payment["status"] == PaymentStatus.REFUNDED:
             return payment
-        if payment["status"] in rules.NOTHING_TAKEN:
+        # A VOIDED payment with a refund row is a late capture whose refund has not gone through yet.
+        late_refund_due = payment["status"] == PaymentStatus.VOIDED and payment["refund"] is not None
+        if payment["status"] in rules.NOTHING_TAKEN and not late_refund_due:
             raise AppError(409, "PAYMENT_NOT_REFUNDABLE", "Nothing to refund",
                            f"Payment is {payment['status']}; no money was taken", rule="BR4",
                            payment_id=payment_id, payment_status=payment["status"])
 
-        amount = rules.refund_amount_for(payment["status"], payment["amount_paise"])
+        amount = payment["amount_paise"] if late_refund_due else \
+            rules.refund_amount_for(payment["status"], payment["amount_paise"])
         refund = self._get_or_create_refund(payment_id, amount, reason)
         outcome = self.gateway.refund(f"refund-{refund['refund_id']}", {
             "charge_id": payment["gateway_charge_id"], "amount_paise": amount})
@@ -129,6 +170,12 @@ class PaymentService:
                                             "reason": reason})
         return self.get(payment_id)
 
+    def _charge_in_flight(self, payment: dict) -> bool:
+        """PENDING with no outcome recorded yet, and young enough that charge() may
+        still be sending attempts. Older than that, the charge is assumed to have died."""
+        no_outcome_yet = payment["failure_reason"] is None and payment["gateway_attempts"] == 0
+        return no_outcome_yet and datetime.now(timezone.utc) - payment["created_at"] < self.charge_window
+
     def _get_or_create_refund(self, payment_id: UUID, amount: int, reason: str) -> dict:
         with self.engine.begin() as conn:
             existing = repo.get_refund_for_payment(conn, payment_id)
@@ -144,7 +191,7 @@ class PaymentService:
             return repo.get_refund_for_payment(conn, payment_id)
 
     def _reconcile(self, payment: dict) -> dict:
-        """The charge timed out earlier, so ask the gateway what really happened."""
+        """The charge is over (timed out, or its process died), so ask the gateway what really happened."""
         payment_id = payment["payment_id"]
         try:
             charge = self.gateway.find_charge(gateway_key(payment_id))
@@ -166,6 +213,23 @@ class PaymentService:
         log.info("pending payment reconciled", extra={"payment_id": str(payment_id),
                                                      "status": reconciled["status"]})
         return reconciled
+
+    # ---- void (compensation when booking-service sees no payment yet) ----------
+
+    def void_for_booking(self, booking_id: UUID, amount_paise: int, currency: str, method: str,
+                         payer_ref: str) -> dict:
+        """Makes sure a booking can no longer be charged. If it has no payment yet, a
+        VOIDED one is recorded; a charge request arriving later then fails on
+        UNIQUE(booking_id) and never reaches the bank. If a payment already exists it
+        is returned unchanged - the caller then refunds it like any other."""
+        with self.engine.begin() as conn:
+            voided = repo.insert_voided_if_absent(conn, uuid.uuid4(), booking_id, amount_paise, currency,
+                                                  method, payer_ref)
+        payment = self.find_by_booking(booking_id)
+        if voided:
+            log.info("no payment existed for the booking - recorded as VOIDED so a late charge cannot go through",
+                     extra={"booking_id": str(booking_id), "payment_id": str(payment["payment_id"])})
+        return payment
 
     # ---- reads ----------------------------------------------------------------
 

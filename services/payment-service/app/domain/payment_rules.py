@@ -16,7 +16,7 @@ class PaymentStatus:
     DECLINED = "DECLINED"      # the bank said no; nothing was taken
     FAILED = "FAILED"          # gateway unreachable; nothing was taken
     REFUNDED = "REFUNDED"
-    VOIDED = "VOIDED"          # outcome was unknown, reconciliation showed no charge
+    VOIDED = "VOIDED"          # no charge: never sent (cancelled first) or the bank had none
 
 
 PAYMENT_TRANSITIONS: dict[str, set[str]] = {
@@ -26,7 +26,9 @@ PAYMENT_TRANSITIONS: dict[str, set[str]] = {
     PaymentStatus.DECLINED: set(),
     PaymentStatus.FAILED: set(),
     PaymentStatus.REFUNDED: set(),
-    PaymentStatus.VOIDED: set(),
+    # Only when a charge reached the bank after the payment had been voided: that
+    # money is refunded straight away, so it ends REFUNDED instead of VOIDED.
+    PaymentStatus.VOIDED: {PaymentStatus.REFUNDED},
 }
 
 # A payment in one of these states never moved money.

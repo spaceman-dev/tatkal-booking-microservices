@@ -6,6 +6,7 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import text
 
+from app.clients.base import DownstreamRejected
 from app.core.errors import AppError
 from app.services.saga import BookingRequest
 
@@ -122,3 +123,58 @@ def test_release_of_a_hold_inventory_does_not_know_counts_as_done(engine, saga, 
 
     assert saga.recover(booking_id) == "FAILED"
     assert saga_steps(engine, booking_id)[-1] == ("RELEASE_SEATS", "COMPENSATE", "OK")
+
+
+def stuck_after_hold(engine, inventory):
+    """A booking whose request died after the hold, while the charge was being sent."""
+    booking_id, hold_id = uuid.uuid4(), str(uuid.uuid4())
+    inventory.holds[hold_id] = {"hold_id": hold_id, "booking_id": str(booking_id), "seat_count": 1,
+                                "status": "HELD"}
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO bookings (booking_id, status, train_no, journey_date, travel_class, passenger_count, "
+            "contact_mobile, payment_method, payer_ref, amount_paise, hold_id, updated_at) "
+            "VALUES (:b, 'SEATS_HELD', '12951', CURRENT_DATE + 30, '3A', 1, '9876543210', 'UPI', 'a@ok', "
+            "289500, :h, now() - interval '5 minutes')"),
+            {"b": booking_id, "h": hold_id})
+    return booking_id, hold_id
+
+
+def test_payment_not_seen_yet_is_voided_so_the_late_charge_fails(engine, saga, fakes):
+    """The charge request is still on its way to payment-service when the refund step
+    runs. The refund finds no payment, so it voids the booking's payment instead of
+    reporting "nothing to refund"; the charge arriving afterwards is refused."""
+    inventory, payment = fakes
+    booking_id, hold_id = stuck_after_hold(engine, inventory)
+
+    assert saga.recover(booking_id) == "FAILED"
+    with pytest.raises(DownstreamRejected) as late:
+        saga.payment.charge(booking_id, 289_500, "UPI", "a@ok")
+
+    assert payment.calls == ["void", "charge"]
+    assert late.value.code == "PAYMENT_ALREADY_EXISTS"
+    assert payment.for_booking(str(booking_id))["status"] == "VOIDED"
+    assert inventory.holds[hold_id]["status"] == "RELEASED"
+    with engine.connect() as conn:
+        detail = conn.execute(text("SELECT detail FROM saga_log WHERE booking_id = :b AND step = 'REFUND_PAYMENT'"),
+                              {"b": booking_id}).scalar_one()
+    assert "voided" in detail
+
+
+def test_refund_of_a_charge_still_in_flight_is_finished_later(engine, saga, fakes):
+    inventory, payment = fakes
+    booking_id, hold_id = stuck_after_hold(engine, inventory)
+    payment_id = str(uuid.uuid4())
+    payment.payments[payment_id] = {"payment_id": payment_id, "booking_id": str(booking_id),
+                                    "amount_paise": 289_500, "status": "PENDING", "failure_reason": None}
+    payment.refund_in_progress = 2  # the call and the client's one retry
+
+    assert saga.recover(booking_id) == "COMPENSATING"
+    assert saga.get(booking_id)["compensation_steps"] == "REFUND_PAYMENT"
+    assert inventory.holds[hold_id]["status"] == "RELEASED"  # seats are not kept while we wait
+
+    payment.payments[payment_id]["status"] = "CAPTURED"  # the charge went through in the end
+    assert saga.recover(booking_id) == "FAILED"
+    assert payment.payments[payment_id]["status"] == "REFUNDED"
+    assert saga.get(booking_id)["refund_paise"] == 289_500
+    assert outbox_events(engine, booking_id) == ["BOOKING_FAILED"]

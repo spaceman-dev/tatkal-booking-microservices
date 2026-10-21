@@ -64,6 +64,7 @@ idempotency_keys = Table(
     Column("idem_key", String(100), primary_key=True),
     Column("request_hash", String(64), nullable=False),
     Column("status", String(12), nullable=False),
+    Column("owner_token", String(32), nullable=False),
     Column("response_code", Integer),
     # Stored as the exact text that was sent, so a replay is byte-for-byte the same.
     Column("response_body", Text),

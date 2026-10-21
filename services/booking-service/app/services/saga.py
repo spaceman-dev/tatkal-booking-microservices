@@ -37,6 +37,18 @@ EXECUTE, COMPENSATE = "EXECUTE", "COMPENSATE"
 OK, FAILED = "OK", "FAILED"
 NOTHING_TAKEN = {"DECLINED", "FAILED", "VOIDED"}
 
+# HTTP status that a FAILED booking was reported with, by failure_reason.
+FAILURE_STATUS = {
+    "SEATS_UNAVAILABLE": 409,
+    "INVENTORY_NOT_FOUND": 404,
+    "PAYMENT_DECLINED": 402,
+    "INVENTORY_UNAVAILABLE": 503,
+    "PAYMENT_UNAVAILABLE": 503,
+    "PAYMENT_OUTCOME_UNKNOWN": 504,
+    "SAGA_TIMEOUT": 504,
+    "SEAT_CONFIRMATION_FAILED": 502,
+}
+
 
 @dataclass
 class BookingRequest:
@@ -68,16 +80,31 @@ class BookingSaga:
     # ==== place a booking =========================================================
 
     def place_booking(self, req: BookingRequest) -> tuple[int, dict]:
+        # Normally the idempotency layer answers repeats. A booking can still exist for this
+        # key if the request that created it died before storing its response; then we
+        # report that booking instead of starting a second saga (second hold, second charge).
+        if req.idempotency_key:
+            existing = self.find_by_idempotency_key(req.idempotency_key)
+            if existing is not None:
+                log.warning("a booking already exists for this Idempotency-Key, not starting a second saga",
+                            extra={"booking_id": str(existing["booking_id"]), "status": existing["status"]})
+                return self.outcome_of(existing)
+
         booking_id = uuid.uuid4()
         seats = len(req.passengers)
-        with self.engine.begin() as conn:
-            repo.insert_booking(conn, {
-                "booking_id": booking_id, "status": S.PENDING, "train_no": req.train_no,
-                "journey_date": req.journey_date, "travel_class": req.travel_class, "passenger_count": seats,
-                "contact_mobile": req.mobile, "contact_email": req.email, "payment_method": req.payment_method,
-                "payer_ref": req.payer_ref, "idempotency_key": req.idempotency_key,
-                "correlation_id": get_correlation_id(),
-            }, req.passengers)
+        try:
+            with self.engine.begin() as conn:
+                repo.insert_booking(conn, {
+                    "booking_id": booking_id, "status": S.PENDING, "train_no": req.train_no,
+                    "journey_date": req.journey_date, "travel_class": req.travel_class, "passenger_count": seats,
+                    "contact_mobile": req.mobile, "contact_email": req.email, "payment_method": req.payment_method,
+                    "payer_ref": req.payer_ref, "idempotency_key": req.idempotency_key,
+                    "correlation_id": get_correlation_id(),
+                }, req.passengers)
+        except IntegrityError as exc:
+            if req.idempotency_key and is_unique_violation(exc, "uq_bookings_idempotency_key"):
+                return self.outcome_of(self.find_by_idempotency_key(req.idempotency_key))
+            raise
         log.info("booking created", extra={"booking_id": str(booking_id), "train_no": req.train_no,
                                            "journey_date": str(req.journey_date), "seats": seats})
 
@@ -212,8 +239,17 @@ class BookingSaga:
     def _refund(self, booking: dict) -> str:
         payment = self.payment.find_payment(booking["booking_id"])
         if payment is None:
-            return "no payment was made"
-        if payment["status"] in NOTHING_TAKEN:
+            if booking["amount_paise"] is None:
+                return "no payment was made"
+            # The charge request may still be on its way to payment-service. Recording a
+            # VOIDED payment for the booking makes sure it can never be charged later.
+            payment = self.payment.void(booking["booking_id"], booking["amount_paise"], booking["payment_method"],
+                                        booking["payer_ref"])
+            if payment["status"] == "VOIDED" and payment.get("failure_reason") == "VOIDED_BEFORE_CHARGE":
+                return "no payment was made; payment voided so a late charge cannot go through"
+        late_refund_due = (payment["status"] == "VOIDED" and payment.get("refund")
+                           and payment["refund"]["status"] == "PENDING")
+        if payment["status"] in NOTHING_TAKEN and not late_refund_due:
             return f"nothing to refund (payment {payment['status']})"
         if payment["status"] != "REFUNDED":
             try:
@@ -308,6 +344,27 @@ class BookingSaga:
                       limit: int) -> list[dict]:
         with self.engine.connect() as conn:
             return repo.list_bookings(conn, status, train_no, journey_date, limit)
+
+    def find_by_idempotency_key(self, key: str) -> dict | None:
+        with self.engine.connect() as conn:
+            return repo.get_booking_by_idempotency_key(conn, key)
+
+    def outcome_of(self, booking: dict) -> tuple[int, dict]:
+        """What POST /bookings answers for a booking that already exists: the booking
+        itself if it was confirmed, the error it failed with, or "still in progress"."""
+        status = booking["status"]
+        if status in (S.CONFIRMED, S.CANCELLED):
+            return 201, booking
+        if status == S.FAILED:
+            reason = booking["failure_reason"] or "BOOKING_FAILED"
+            raise self._error(booking["booking_id"], FAILURE_STATUS.get(reason, 502), reason, "Booking failed",
+                              f"This request was already processed: booking {booking['booking_id']} failed "
+                              f"({reason}).", S.FAILED)
+        raise AppError(409, "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+                       "The booking for this Idempotency-Key is still being processed",
+                       f"Booking {booking['booking_id']} is {status}. Retry later with the same key.",
+                       headers={"Retry-After": "5"}, final=False, booking_id=booking["booking_id"],
+                       booking_status=status)
 
     def saga_log(self, booking_id: UUID) -> list[dict]:
         with self.engine.connect() as conn:

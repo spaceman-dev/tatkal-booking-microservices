@@ -43,6 +43,10 @@ def test_br4_a_failed_or_declined_payment_can_never_become_captured():
     assert NOTHING_TAKEN == {PaymentStatus.DECLINED, PaymentStatus.FAILED, PaymentStatus.VOIDED}
 
 
+def test_br4_refunded_comes_from_captured_or_a_late_capture_on_a_voided_payment():
+    assert statuses_that_can_move_to(PaymentStatus.REFUNDED) == (PaymentStatus.CAPTURED, PaymentStatus.VOIDED)
+
+
 @pytest.mark.parametrize("amount", [0, -100, 5_00_000 * 100 + 1])
 def test_charge_amount_limits(amount):
     with pytest.raises(RuleViolation):

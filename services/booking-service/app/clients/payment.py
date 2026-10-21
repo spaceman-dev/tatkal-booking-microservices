@@ -22,6 +22,14 @@ class PaymentClient:
         found = self.client.call("GET", "/api/v1/payments", idempotent=True, params={"booking_id": str(booking_id)})
         return found[0] if found else None
 
+    def void(self, booking_id: UUID, amount_paise: int, method: str, payer_ref: str) -> dict:
+        """Compensation when no payment is visible yet: payment-service records a VOIDED
+        payment for the booking (unless one appeared meanwhile) so that a charge request
+        still on its way can never go through. Safe to retry."""
+        return self.client.call("POST", "/api/v1/payments/void", idempotent=True, json={
+            "booking_id": str(booking_id), "amount_paise": amount_paise, "currency": "INR",
+            "method": method, "payer_ref": payer_ref})
+
     def refund(self, payment_id: UUID, reason: str) -> dict:
         # Safe to retry: a payment can be refunded only once (BR4).
         return self.client.call("POST", f"/api/v1/payments/{payment_id}/refund", idempotent=True,

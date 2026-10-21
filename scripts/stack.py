@@ -70,19 +70,54 @@ def pid_file(service: str) -> Path:
     return RUN_DIR / f"{service}.pid"
 
 
+def process_cwd(pid: int) -> Path | None:
+    proc = Path(f"/proc/{pid}/cwd")
+    if proc.exists():  # Linux
+        return Path(os.readlink(proc)).resolve()
+    out = subprocess.run(["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"],  # macOS
+                         capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        if line.startswith("n"):
+            return Path(line[1:]).resolve()
+    return None
+
+
+def is_service_process(pid: int, service: str) -> bool:
+    """True only if `pid` is this service's `python -m app`. Once a service has died,
+    the OS can hand its number to any other program, so a pid file alone is not proof."""
+    folder = SERVICES_DIR / service
+    try:
+        if WINDOWS:
+            # The venv's python.exe is a small launcher, and its command line holds the venv path.
+            query = f"(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine"
+            command = subprocess.run(["powershell", "-NoProfile", "-Command", query],
+                                     capture_output=True, text=True, timeout=30).stdout
+            return str(folder / ".venv").lower() in command.lower() and "-m app" in command
+        # On macOS the interpreter re-executes itself, so the venv path is not in the
+        # command line; the working directory tells the services apart instead.
+        command = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True).stdout
+        return "-m app" in command and process_cwd(pid) == folder.resolve()
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
 def running_pid(service: str) -> int | None:
     path = pid_file(service)
     if not path.exists():
         return None
-    pid = int(path.read_text().strip())
-    try:
-        if WINDOWS:
-            out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, text=True).stdout
-            return pid if str(pid) in out else None
-        os.kill(pid, 0)
-        return pid
-    except OSError:
-        return None
+    text = path.read_text().strip()
+    if text.isdigit() and is_service_process(int(text), service):
+        return int(text)
+    path.unlink(missing_ok=True)  # stale: never signal whatever process has that number now
+    return None
 
 
 # ---- commands --------------------------------------------------------------------
@@ -112,8 +147,9 @@ def cmd_setup(_args) -> None:
 
 
 def start_one(service: str) -> None:
-    if running_pid(service):
-        print(f"{service:22} already running (pid {running_pid(service)})")
+    pid = running_pid(service)
+    if pid:
+        print(f"{service:22} already running (pid {pid})")
         return
     folder = SERVICES_DIR / service
     python = venv_python(folder / ".venv")
@@ -122,8 +158,12 @@ def start_one(service: str) -> None:
     LOG_DIR.mkdir(exist_ok=True)
     RUN_DIR.mkdir(exist_ok=True)
     log = open(LOG_DIR / f"{service}.log", "ab")
-    kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if WINDOWS else {"start_new_session": True}
-    proc = subprocess.Popen([str(python), "-m", "app"], cwd=folder, stdout=log, stderr=subprocess.STDOUT, **kwargs)
+    if WINDOWS:  # no console of its own, so closing this terminal does not stop the service
+        kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS}
+    else:
+        kwargs = {"start_new_session": True}
+    proc = subprocess.Popen([str(python), "-m", "app"], cwd=folder, stdin=subprocess.DEVNULL, stdout=log,
+                            stderr=subprocess.STDOUT, **kwargs)
     pid_file(service).write_text(str(proc.pid))
     print(f"{service:22} starting on port {port_of(service)} (pid {proc.pid}, log logs/{service}.log)")
 
@@ -155,16 +195,17 @@ def stop_one(service: str) -> None:
     pid = running_pid(service)
     if not pid:
         print(f"{service:22} not running")
-        pid_file(service).unlink(missing_ok=True)
         return
     if WINDOWS:
         subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
     else:
         os.kill(pid, signal.SIGTERM)
-        for _ in range(50):
-            if running_pid(service) is None:
+        for _ in range(100):  # graceful shutdown stops the background jobs first
+            if not alive(pid):
                 break
             time.sleep(0.1)
+        else:
+            os.kill(pid, signal.SIGKILL)
     pid_file(service).unlink(missing_ok=True)
     print(f"{service:22} stopped")
 

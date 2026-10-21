@@ -149,8 +149,7 @@ class PaymentService:
                            f"Payment is {payment['status']}; no money was taken", rule="BR4",
                            payment_id=payment_id, payment_status=payment["status"])
 
-        amount = payment["amount_paise"] if late_refund_due else \
-            rules.refund_amount_for(payment["status"], payment["amount_paise"])
+        amount = rules.refund_amount_for(payment["status"], payment["amount_paise"], late_capture=late_refund_due)
         refund = self._get_or_create_refund(payment_id, amount, reason)
         outcome = self.gateway.refund(f"refund-{refund['refund_id']}", {
             "charge_id": payment["gateway_charge_id"], "amount_paise": amount})

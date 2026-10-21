@@ -1,5 +1,5 @@
-"""BR4 - a booking is charged at most once, and only a captured payment can be
-refunded - in full, and only once.
+"""BR4 - a booking is charged at most once, and only money that was really taken
+(a captured payment) can be refunded - in full, and only once.
 
 "At most once" is enforced in three layers: the Idempotency-Key on the API, a
 UNIQUE(booking_id) constraint on payments, and the gateway's own idempotency key.
@@ -49,11 +49,13 @@ def check_charge_amount(amount_paise: int) -> None:
                             f"Amount must be between 1 paisa and Rs {MAX_AMOUNT_PAISE // 100}")
 
 
-def refund_amount_for(status: str, captured_amount_paise: int) -> int:
-    """Refunds are always for the full captured amount and only from CAPTURED."""
+def refund_amount_for(status: str, captured_amount_paise: int, late_capture: bool = False) -> int:
+    """Refunds are always for the full captured amount, and only for money that was
+    really taken: a CAPTURED payment, or a capture that reached the bank after the
+    payment had been VOIDED (`late_capture`)."""
     if status == PaymentStatus.REFUNDED:
         raise RuleViolation("BR4", "ALREADY_REFUNDED", "Payment has already been refunded")
-    if status != PaymentStatus.CAPTURED:
-        raise RuleViolation("BR4", "PAYMENT_NOT_REFUNDABLE",
-                            f"Only a CAPTURED payment can be refunded (payment is {status})")
-    return captured_amount_paise
+    if status == PaymentStatus.CAPTURED or (status == PaymentStatus.VOIDED and late_capture):
+        return captured_amount_paise
+    raise RuleViolation("BR4", "PAYMENT_NOT_REFUNDABLE",
+                        f"Only a CAPTURED payment can be refunded (payment is {status})")

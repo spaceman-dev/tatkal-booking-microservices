@@ -1,5 +1,6 @@
-"""BR4 - a booking is charged at most once; only a CAPTURED payment can be
-refunded, in full, and only once."""
+"""BR4 - a booking is charged at most once; only money that was really taken
+(a CAPTURED payment, or a late capture on a voided one) can be refunded, in
+full, and only once."""
 import pytest
 
 from app.domain.errors import RuleViolation
@@ -30,6 +31,12 @@ def test_br4_only_captured_payments_can_be_refunded(status):
     with pytest.raises(RuleViolation) as err:
         refund_amount_for(status, 579_000)
     assert err.value.code == "PAYMENT_NOT_REFUNDABLE"
+
+
+def test_br4_a_capture_that_arrived_after_the_void_is_refunded_in_full():
+    assert refund_amount_for(PaymentStatus.VOIDED, 579_000, late_capture=True) == 579_000
+    with pytest.raises(RuleViolation):  # the flag only matters for VOIDED
+        refund_amount_for(PaymentStatus.DECLINED, 579_000, late_capture=True)
 
 
 def test_br4_refunded_is_terminal():

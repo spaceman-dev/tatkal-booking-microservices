@@ -24,14 +24,14 @@ from app.services.saga import BookingSaga
 log = logging.getLogger(__name__)
 
 DESCRIPTION = """
-Owns bookings and their lifecycle, and **orchestrates the booking saga**:
+Owns bookings and runs the booking saga:
 
-1. hold seats (inventory-service) - undo: release
-2. take payment (payment-service) - undo: refund
-3. confirm seats (inventory-service) - pivot
-4. notify (notification-service) - asynchronous, through a transactional outbox
+1. hold seats (inventory-service), undone by a release
+2. take payment (payment-service), undone by a refund
+3. confirm seats (inventory-service), the pivot step
+4. notify (notification-service), async through the outbox
 
-`POST /bookings` needs an `Idempotency-Key`. Business rules owned here: BR2 (passengers),
+`POST /bookings` needs an `Idempotency-Key`. Business rules here: BR2 (passengers),
 BR5 (state machine), BR6 (compensation) and BR7 (Tatkal cancellation).
 """
 

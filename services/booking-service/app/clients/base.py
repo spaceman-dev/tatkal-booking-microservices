@@ -1,10 +1,5 @@
-"""Small HTTP client wrapper used for every call to another service.
-
-* forwards the correlation id so one booking can be traced across all services
-* has a timeout on every call
-* retries only when the caller says the operation is idempotent
-* turns failures into two exception types the saga can reason about
-"""
+"""httpx wrapper used for every call to another service: correlation id header, timeouts,
+retries for idempotent calls only, and two exception types the saga can tell apart."""
 import logging
 import random
 import time
@@ -17,7 +12,7 @@ log = logging.getLogger(__name__)
 
 
 class DownstreamRejected(Exception):
-    """The other service answered with a 4xx - a definite 'no'."""
+    """4xx from the other service, a definite no."""
 
     def __init__(self, service: str, status: int, body: dict):
         self.service = service
@@ -28,10 +23,10 @@ class DownstreamRejected(Exception):
 
 
 class DownstreamError(Exception):
-    """The other service failed (5xx) or could not be reached.
+    """5xx from the other service, or it could not be reached.
 
-    `uncertain` is True when the request may have been processed anyway (timeout
-    after sending, or a 5xx that explicitly says the outcome is unknown)."""
+    `uncertain` is set once a request went out but no answer came back, so the other
+    side may have done the work anyway."""
 
     def __init__(self, service: str, detail: str, status: int | None = None, body: dict | None = None,
                  uncertain: bool = False):
@@ -74,6 +69,7 @@ class ServiceClient:
     def call(self, method: str, path: str, *, idempotent: bool, json: dict | None = None,
              params: dict | None = None, headers: dict | None = None):
         attempts = 1 + (self.retries if idempotent else 0)
+        # once an attempt was sent without getting an answer, later errors are uncertain too
         uncertain = False
         last_error: DownstreamError | None = None
         for attempt in range(1, attempts + 1):
@@ -96,6 +92,7 @@ class ServiceClient:
                                                         f"{body.get('code', '')}".strip(),
                                              status=response.status_code, body=body, uncertain=uncertain)
             if attempt < attempts:
+                # exponential backoff with full jitter
                 delay = random.uniform(0, 0.2 * 2 ** (attempt - 1))
                 log.warning("call to %s failed, retrying", self.name,
                             extra={"path": path, "attempt": attempt, "error": last_error.detail,

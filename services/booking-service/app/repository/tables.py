@@ -1,8 +1,5 @@
-"""Schema owned by booking-service.
-
-`hold_id` (inventory-service) and `payment_id` (payment-service) are plain UUID
-columns: we keep the other services' ids, never their data, and never a foreign key.
-"""
+"""booking_db tables. hold_id and payment_id are only ids from the other services, no
+foreign keys and none of their data."""
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -50,7 +47,7 @@ bookings = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     UniqueConstraint("pnr", name="uq_bookings_pnr"),
-    # One booking per Idempotency-Key, even if a key is taken over after a crash.
+    # one booking per Idempotency-Key, also after a key takeover (see saga.place_booking)
     UniqueConstraint("idempotency_key", name="uq_bookings_idempotency_key"),
     CheckConstraint("passenger_count BETWEEN 1 AND 4", name="ck_bookings_passenger_count"),
     CheckConstraint(
@@ -70,8 +67,7 @@ passengers = Table(
     CheckConstraint("age >= 5", name="ck_passengers_min_age"),
 )
 
-# Append-only record of every saga step and compensation - the audit trail we
-# show as evidence for Challenge 3.
+# append-only log of every saga step and compensation (GET /bookings/{id}/saga)
 saga_log = Table(
     "saga_log",
     metadata,
@@ -84,7 +80,7 @@ saga_log = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
 
-# Challenge 2: Idempotency-Key + request fingerprint + the stored response.
+# used by services/idempotency.py: key, request hash and the stored response
 idempotency_keys = Table(
     "idempotency_keys",
     metadata,
@@ -101,8 +97,8 @@ idempotency_keys = Table(
     CheckConstraint("status IN ('IN_PROGRESS','COMPLETED')", name="ck_idem_status"),
 )
 
-# Transactional outbox: events are written in the same transaction as the booking
-# change and delivered to notification-service by a background dispatcher.
+# transactional outbox: written in the same transaction as the booking change and
+# sent to notification-service later by services/outbox.py
 outbox = Table(
     "outbox",
     metadata,

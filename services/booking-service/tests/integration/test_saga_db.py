@@ -1,5 +1,5 @@
-"""Challenge 3 / BR6 - the saga against the real booking database, with fake
-inventory and payment services so failures can be forced exactly where we want."""
+"""BR6 saga tests against the real booking_db, with fake inventory and payment services
+so we can make any step fail."""
 import uuid
 from datetime import date, timedelta
 
@@ -55,7 +55,7 @@ def test_br6_failure_at_step_3_refunds_then_releases(engine, saga, fakes):
     booking = saga.get(booking_id)
     assert booking["status"] == "FAILED"
     assert booking["refund_paise"] == booking["amount_paise"] == 579_000
-    # compensations ran newest-first: refund (undo step 2) before release (undo step 1)
+    # undone newest first: refund (step 2) before release (step 1)
     assert payment.calls == ["charge", "refund"]
     assert inventory.calls == ["hold", "confirm", "confirm", "release"]
     assert saga_steps(engine, booking_id) == [
@@ -86,9 +86,8 @@ def test_failed_compensation_is_finished_by_recovery(engine, saga, fakes):
     assert all(h["status"] == "RELEASED" for h in inventory.holds.values())
 
 
-def test_saga_abandoned_after_payment_is_compensated_by_recovery(engine, saga, fakes):
-    """Simulates booking-service dying right after the payment step: the fakes hold
-    what steps 1 and 2 did, and the booking row is left in PAYMENT_DONE."""
+def test_recovery_undoes_saga_stuck_after_payment(engine, saga, fakes):
+    # service died right after step 2: hold and payment exist in the fakes, row is left in PAYMENT_DONE
     inventory, payment = fakes
     booking_id, hold_id, payment_id = uuid.uuid4(), str(uuid.uuid4()), str(uuid.uuid4())
     inventory.holds[hold_id] = {"hold_id": hold_id, "booking_id": str(booking_id), "seat_count": 1,
@@ -109,9 +108,8 @@ def test_saga_abandoned_after_payment_is_compensated_by_recovery(engine, saga, f
     assert saga.get(booking_id)["failure_reason"] == "SAGA_TIMEOUT"
 
 
-def test_release_of_a_hold_inventory_does_not_know_counts_as_done(engine, saga, fakes):
-    """If inventory answers 404 for the hold there is nothing to give back - the
-    compensation must finish instead of being retried forever."""
+def test_release_of_unknown_hold_counts_as_done(engine, saga, fakes):
+    # 404 from inventory means there is nothing to give back, so don't keep retrying
     booking_id, unknown_hold = uuid.uuid4(), uuid.uuid4()
     with engine.begin() as conn:
         conn.execute(text(
@@ -126,7 +124,7 @@ def test_release_of_a_hold_inventory_does_not_know_counts_as_done(engine, saga, 
 
 
 def stuck_after_hold(engine, inventory):
-    """A booking whose request died after the hold, while the charge was being sent."""
+    """Booking whose request died after the hold, while the charge was in flight."""
     booking_id, hold_id = uuid.uuid4(), str(uuid.uuid4())
     inventory.holds[hold_id] = {"hold_id": hold_id, "booking_id": str(booking_id), "seat_count": 1,
                                 "status": "HELD"}
@@ -140,10 +138,9 @@ def stuck_after_hold(engine, inventory):
     return booking_id, hold_id
 
 
-def test_payment_not_seen_yet_is_voided_so_the_late_charge_fails(engine, saga, fakes):
-    """The charge request is still on its way to payment-service when the refund step
-    runs. The refund finds no payment, so it voids the booking's payment instead of
-    reporting "nothing to refund"; the charge arriving afterwards is refused."""
+def test_void_blocks_late_charge(engine, saga, fakes):
+    # The charge is still on its way when the refund step runs. No payment is visible yet,
+    # so we void instead of saying "nothing to refund", and the late charge then gets a 409.
     inventory, payment = fakes
     booking_id, hold_id = stuck_after_hold(engine, inventory)
 
@@ -161,7 +158,7 @@ def test_payment_not_seen_yet_is_voided_so_the_late_charge_fails(engine, saga, f
     assert "voided" in detail
 
 
-def test_refund_of_a_charge_still_in_flight_is_finished_later(engine, saga, fakes):
+def test_refund_of_in_flight_charge_finished_later(engine, saga, fakes):
     inventory, payment = fakes
     booking_id, hold_id = stuck_after_hold(engine, inventory)
     payment_id = str(uuid.uuid4())

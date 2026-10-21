@@ -13,7 +13,7 @@ class PassengerIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=2, max_length=60, pattern=r"^[A-Za-z][A-Za-z .'-]*$")
-    # Format only; the minimum age for a berth is business rule BR2 (domain/booking_rules.py).
+    # format check only, the age limit itself is BR2 (domain/booking_rules.py)
     age: int = Field(ge=0, le=125)
     gender: Literal["M", "F", "T"]
 
@@ -49,7 +49,7 @@ class BookingIn(BaseModel):
     train_no: TrainNo
     journey_date: date
     travel_class: TravelClass
-    # Size is limited by BR2 (1 to 4); the schema only stops absurd payloads.
+    # BR2 allows 1 to 4, this limit only stops silly payloads
     passengers: list[PassengerIn] = Field(max_length=10)
     contact: ContactIn
     payment: PaymentIn

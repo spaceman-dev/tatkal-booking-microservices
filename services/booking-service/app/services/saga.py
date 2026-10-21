@@ -1,14 +1,5 @@
-"""The booking saga - orchestrated by booking-service.
-
-    step 1  HOLD_SEATS      inventory-service  POST /holds               undo: RELEASE_SEATS
-    step 2  CHARGE_PAYMENT  payment-service    POST /payments            undo: REFUND_PAYMENT
-    step 3  CONFIRM_SEATS   inventory-service  POST /holds/{id}/confirm  pivot - no undo needed after it
-    step 4  NOTIFY          outbox -> notification-service (async, retried, never undone)
-
-Every state change is committed before the next remote call, so if this process
-dies half way the database says exactly how far the booking got, and the recovery
-job (services/recovery.py) can finish the compensation.
-"""
+"""Booking saga orchestrator. The status is committed before every remote call, so
+after a crash the row shows how far the booking got and recovery.py can undo the rest."""
 import logging
 import random
 import uuid
@@ -37,7 +28,7 @@ EXECUTE, COMPENSATE = "EXECUTE", "COMPENSATE"
 OK, FAILED = "OK", "FAILED"
 NOTHING_TAKEN = {"DECLINED", "FAILED", "VOIDED"}
 
-# HTTP status that a FAILED booking was reported with, by failure_reason.
+# status code we answered with for each failure_reason, reused when a retry hits a FAILED booking
 FAILURE_STATUS = {
     "SEATS_UNAVAILABLE": 409,
     "INVENTORY_NOT_FOUND": 404,
@@ -71,18 +62,23 @@ def rupees(paise: int | None) -> str:
     return f"{(paise or 0) / 100:,.2f}"
 
 
+# saga steps:
+#   1 HOLD_SEATS      undo: RELEASE_SEATS
+#   2 CHARGE_PAYMENT  undo: REFUND_PAYMENT (or a void if no payment is visible yet)
+#   3 CONFIRM_SEATS   pivot, never undone
+#   4 NOTIFY          outbox row, sent later by outbox.py
 class BookingSaga:
     def __init__(self, engine: Engine, inventory: InventoryClient, payment: PaymentClient):
         self.engine = engine
         self.inventory = inventory
         self.payment = payment
 
-    # ==== place a booking =========================================================
+    # ---- place a booking ----
 
     def place_booking(self, req: BookingRequest) -> tuple[int, dict]:
-        # Normally the idempotency layer answers repeats. A booking can still exist for this
-        # key if the request that created it died before storing its response; then we
-        # report that booking instead of starting a second saga (second hold, second charge).
+        # Repeats are normally answered by the idempotency layer. But if the request that
+        # owned this key died before storing its response, the key gets taken over and we
+        # end up here. Return the booking it already made, no second hold or charge.
         if req.idempotency_key:
             existing = self.find_by_idempotency_key(req.idempotency_key)
             if existing is not None:
@@ -102,13 +98,14 @@ class BookingSaga:
                     "correlation_id": get_correlation_id(),
                 }, req.passengers)
         except IntegrityError as exc:
+            # lost a race with another request using the same key, it inserted first
             if req.idempotency_key and is_unique_violation(exc, "uq_bookings_idempotency_key"):
                 return self.outcome_of(self.find_by_idempotency_key(req.idempotency_key))
             raise
         log.info("booking created", extra={"booking_id": str(booking_id), "train_no": req.train_no,
                                            "journey_date": str(req.journey_date), "seats": seats})
 
-        # ---- step 1: hold seats -------------------------------------------------
+        # step 1: hold seats
         try:
             hold = self.inventory.hold(booking_id, req.train_no, req.journey_date, req.travel_class, seats)
         except DownstreamRejected as rej:
@@ -132,12 +129,12 @@ class BookingSaga:
             repo.log_step(conn, booking_id, Step.HOLD_SEATS, EXECUTE, OK,
                           f"hold {hold['hold_id']}: {seats} seat(s), Rs {rupees(amount)}")
 
-        # ---- step 2: take the payment ----------------------------------------------
+        # step 2: charge
         try:
             payment = self.payment.charge(booking_id, amount, req.payment_method, req.payer_ref)
         except DownstreamRejected as rej:
             self._record(booking_id, Step.CHARGE_PAYMENT, EXECUTE, FAILED, f"{rej.status} {rej.code}")
-            # A second payment for this booking id should be impossible; if it happens, refund to be safe.
+            # PAYMENT_ALREADY_EXISTS shouldn't happen for a new booking id, if it does we refund to be safe
             unknown = rej.code == "PAYMENT_ALREADY_EXISTS"
             final = self._compensate(booking_id, S.SEATS_HELD, rej.code,
                                      compensation_plan(S.SEATS_HELD, payment_outcome_unknown=unknown))
@@ -147,7 +144,7 @@ class BookingSaga:
             raise self._error(booking_id, 502, rej.code, "Payment rejected", rej.body.get("detail"), final)
         except DownstreamError as err:
             self._record(booking_id, Step.CHARGE_PAYMENT, EXECUTE, FAILED, err.detail)
-            # 503 GATEWAY_UNAVAILABLE or "could not connect" = definitely nothing taken.
+            # only GATEWAY_UNAVAILABLE or a failed connect means nothing was charged, anything else may have been
             nothing_taken = err.code == "GATEWAY_UNAVAILABLE" or (err.status is None and not err.uncertain)
             reason = "PAYMENT_UNAVAILABLE" if nothing_taken else "PAYMENT_OUTCOME_UNKNOWN"
             final = self._compensate(booking_id, S.SEATS_HELD, reason,
@@ -165,7 +162,7 @@ class BookingSaga:
             repo.log_step(conn, booking_id, Step.CHARGE_PAYMENT, EXECUTE, OK,
                           f"payment {payment['payment_id']} captured, Rs {rupees(amount)}")
 
-        # ---- step 3: confirm the seats (pivot) ------------------------------------
+        # step 3: confirm seats (pivot)
         try:
             self.inventory.confirm(hold["hold_id"])
         except (DownstreamRejected, DownstreamError) as exc:
@@ -196,7 +193,7 @@ class BookingSaga:
                     raise
         raise RuntimeError("could not allocate a unique PNR")
 
-    # ==== compensation (BR6) =======================================================
+    # ---- compensation (BR6) ----
 
     def _compensate(self, booking_id: UUID, from_status: str, reason: str, steps: list[str]) -> str:
         with self.engine.begin() as conn:
@@ -207,8 +204,8 @@ class BookingSaga:
         return self._run_compensations(booking_id, steps)
 
     def _run_compensations(self, booking_id: UUID, steps: list[str]) -> str:
-        """Runs every step (newest first) even if an earlier one fails, so seats are not
-        kept hostage by a payment outage. Failed steps are left for the recovery job."""
+        """Runs all steps (newest first) even if one fails, so a payment outage doesn't
+        keep the seats held. Whatever failed is left for the recovery job."""
         booking = self.get(booking_id)
         remaining = []
         for step in steps:
@@ -228,7 +225,7 @@ class BookingSaga:
             try:
                 repo.transition(conn, booking_id, S.COMPENSATING, S.FAILED, compensation_steps=None)
             except ConcurrentUpdate:
-                # The recovery job (or the request) finished it first; all steps are idempotent.
+                # recovery job or the request got there first, fine since every step is idempotent
                 return repo.get_booking(conn, booking_id)["status"]
             current = repo.get_booking(conn, booking_id)
             if current["refund_paise"]:
@@ -241,12 +238,13 @@ class BookingSaga:
         if payment is None:
             if booking["amount_paise"] is None:
                 return "no payment was made"
-            # The charge request may still be on its way to payment-service. Recording a
-            # VOIDED payment for the booking makes sure it can never be charged later.
+            # No payment yet, but the charge may still be on its way. Voiding stores a VOIDED
+            # payment for the booking, so that late charge hits UNIQUE(booking_id) and fails.
             payment = self.payment.void(booking["booking_id"], booking["amount_paise"], booking["payment_method"],
                                         booking["payer_ref"])
             if payment["status"] == "VOIDED" and payment.get("failure_reason") == "VOIDED_BEFORE_CHARGE":
                 return "no payment was made; payment voided so a late charge cannot go through"
+        # VOIDED with a PENDING refund: the bank captured after the void, so the money still has to go back
         late_refund_due = (payment["status"] == "VOIDED" and payment.get("refund")
                            and payment["refund"]["status"] == "PENDING")
         if payment["status"] in NOTHING_TAKEN and not late_refund_due:
@@ -267,6 +265,7 @@ class BookingSaga:
 
     def _release(self, booking: dict) -> str:
         hold_id = booking["hold_id"]
+        # no hold_id stored if the hold call timed out, but inventory may still have made one
         if hold_id is None:
             hold = self.inventory.find_hold(booking["booking_id"])
             if hold is None:
@@ -280,7 +279,7 @@ class BookingSaga:
             raise
         return f"released {released['seat_count']} seat(s) of hold {hold_id}"
 
-    # ==== recovery (called by the background job) ==================================
+    # ---- recovery (called from recovery.py) ----
 
     def recover(self, booking_id: UUID) -> str | None:
         booking = self.get(booking_id)
@@ -292,7 +291,7 @@ class BookingSaga:
             log.info("retrying unfinished compensation", extra={"booking_id": str(booking_id), "steps": steps})
             return self._run_compensations(booking_id, steps)
         if status in (S.PENDING, S.SEATS_HELD, S.PAYMENT_DONE):
-            # The request that was driving this saga died. Undo whatever may have happened.
+            # the request running this saga died, maybe mid-call, so undo anything that may have happened
             plan = compensation_plan(status, payment_outcome_unknown=status == S.SEATS_HELD,
                                      hold_outcome_unknown=status == S.PENDING)
             log.warning("saga stopped half way, compensating", extra={"booking_id": str(booking_id),
@@ -300,7 +299,7 @@ class BookingSaga:
             return self._compensate(booking_id, status, "SAGA_TIMEOUT", plan)
         return status
 
-    # ==== cancellation (BR7) =======================================================
+    # ---- cancellation (BR7) ----
 
     def cancel(self, booking_id: UUID) -> dict:
         booking = self.get(booking_id)
@@ -334,7 +333,7 @@ class BookingSaga:
         log.info("booking cancelled", extra={"booking_id": str(booking_id)})
         return self.get(booking_id)
 
-    # ==== helpers ===================================================================
+    # ---- helpers ----
 
     def get(self, booking_id: UUID) -> dict | None:
         with self.engine.connect() as conn:
@@ -350,8 +349,8 @@ class BookingSaga:
             return repo.get_booking_by_idempotency_key(conn, key)
 
     def outcome_of(self, booking: dict) -> tuple[int, dict]:
-        """What POST /bookings answers for a booking that already exists: the booking
-        itself if it was confirmed, the error it failed with, or "still in progress"."""
+        """Answer for a key that already has a booking: the booking if it went through,
+        the same error if it failed, otherwise 409 "in progress" (not stored with the key)."""
         status = booking["status"]
         if status in (S.CONFIRMED, S.CANCELLED):
             return 201, booking

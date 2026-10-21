@@ -1,5 +1,5 @@
-"""Challenge 2 at the saga level: a request whose key was taken over after a crash
-must report the booking the first request made, never start a second one."""
+"""Idempotency-Key takeover at the saga level: the retry gets the booking the first request
+made and never starts a second saga."""
 import uuid
 from datetime import date, timedelta
 
@@ -40,17 +40,17 @@ def insert_booking(engine, status, key):
     return booking_id
 
 
-def test_key_taken_over_after_a_crash_does_not_book_again(engine, saga, fakes):
+def test_key_takeover_returns_existing_booking(engine, saga, fakes):
     inventory, payment = fakes
     store = IdempotencyStore(engine, lease_seconds=0, wait_seconds=2, poll_seconds=0.05)
     key = new_key()
     request_hash = fingerprint("POST", "/api/v1/bookings", {"passengers": 1})
 
-    # First request: claims the key and books, then dies before storing its response.
+    # first request claims the key and books, then "dies" before storing its response
     assert store.claim(key, request_hash).owner
     _, booked = saga.place_booking(request(key))
 
-    # The client retries; the lease has run out, so this request takes the key over.
+    # client retries, the lease is already over (lease_seconds=0) so this one takes the key over
     response = run_idempotent(store, key, request_hash, "/api/v1/bookings",
                               lambda: saga.place_booking(request(key)), resource_field="booking_id")
 
@@ -77,7 +77,7 @@ def test_retry_of_a_failed_booking_gets_the_same_failure(saga, fakes):
     assert (inventory.calls, payment.calls) == calls_after_first
 
 
-def test_retry_while_the_first_saga_is_still_running_is_asked_to_come_back(engine, saga, fakes):
+def test_retry_while_saga_running_gets_409(engine, saga, fakes):
     key = new_key()
     insert_booking(engine, "SEATS_HELD", key)
 
@@ -95,7 +95,7 @@ def test_two_requests_racing_with_one_key_start_one_saga(engine, saga, fakes, mo
     real_lookup = saga.find_by_idempotency_key
     lookups = []
 
-    def lookup(k):  # the first look happens just before the other request inserts its booking
+    def lookup(k):  # first lookup misses, and right after it the other request inserts its booking
         lookups.append(k)
         if len(lookups) == 1:
             insert_booking(engine, "PENDING", k)

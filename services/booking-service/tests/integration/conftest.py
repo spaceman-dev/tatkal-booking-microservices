@@ -15,8 +15,8 @@ from tests.integration.fakes import FakeInventory, FakePayment
 
 @pytest.fixture(scope="session")
 def engine():
-    """Real PostgreSQL, but a throwaway schema per test run, so tests never touch the
-    tables the running service uses (and its background jobs never see test data)."""
+    """Real PostgreSQL, but a throwaway schema per run, so tests don't touch the live
+    tables and the running service's background jobs never see test rows."""
     url = get_settings().database_url
     schema = f"test_{uuid.uuid4().hex[:8]}"
     admin = create_engine(url, pool_size=1, max_overflow=0)

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     db_max_overflow: int = 25
     log_level: str = "INFO"
 
-    # Other services - only ever reached through their HTTP APIs
+    # other services, HTTP only
     inventory_service_url: str
     payment_service_url: str
     notification_service_url: str
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     notification_timeout_seconds: float = 3.0
     downstream_retries: int = 1             # extra attempts for idempotent calls (hold/confirm/release/refund)
 
-    # Idempotency-Key for POST /bookings. The lease must be longer than the slowest saga.
+    # Idempotency-Key on POST /bookings. The lease has to outlast the slowest saga.
     idempotency_lease_seconds: int = 60
     idempotency_wait_seconds: float = 20
     idempotency_ttl_hours: int = 24

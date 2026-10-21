@@ -2,7 +2,7 @@ from app.clients.base import ServiceClient
 
 
 class NotificationClient:
-    """notification-service: only called by the outbox dispatcher, never inside a booking request."""
+    """Only used by the outbox dispatcher, never during a booking request."""
 
     def __init__(self, client: ServiceClient):
         self.client = client

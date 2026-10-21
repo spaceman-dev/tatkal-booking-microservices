@@ -1,5 +1,4 @@
-"""BR7 - cancelling a confirmed Tatkal ticket returns the seats but refunds nothing;
-only a CONFIRMED booking can be cancelled."""
+"""BR7: only a CONFIRMED booking can be cancelled. The seats go back, nothing is refunded."""
 import pytest
 
 from app.domain.booking_rules import BookingStatus as S, tatkal_cancellation

@@ -5,13 +5,13 @@ from app.clients.base import ServiceClient
 
 
 class InventoryClient:
-    """inventory-service: seat holds (saga steps 1 and 3, and the release compensation)."""
+    """inventory-service calls: hold (step 1), confirm (step 3) and release (undo of step 1)."""
 
     def __init__(self, client: ServiceClient):
         self.client = client
 
     def hold(self, booking_id: UUID, train_no: str, journey_date: date, travel_class: str, seat_count: int) -> dict:
-        # Safe to retry: inventory keeps one hold per booking_id.
+        # safe to retry, inventory keeps one hold per booking_id
         return self.client.call("POST", "/api/v1/holds", idempotent=True, json={
             "booking_id": str(booking_id), "train_no": train_no, "journey_date": journey_date.isoformat(),
             "travel_class": travel_class, "seat_count": seat_count})

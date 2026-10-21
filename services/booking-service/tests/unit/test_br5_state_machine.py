@@ -1,4 +1,4 @@
-"""BR5 - a booking only moves along the allowed transitions of its state machine."""
+"""BR5: a booking only moves along the transitions in TRANSITIONS."""
 import pytest
 
 from app.domain.booking_rules import TRANSITIONS, BookingStatus as S, assert_transition

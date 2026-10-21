@@ -1,6 +1,5 @@
-"""In-memory stand-ins for inventory-service and payment-service, plugged into the
-real HTTP client through httpx.MockTransport. They record every call so tests can
-check the order of saga steps and compensations."""
+"""Fake inventory-service and payment-service for the saga tests. They sit behind the
+real client through httpx.MockTransport and record every call, so tests can check the order."""
 import json
 import uuid
 

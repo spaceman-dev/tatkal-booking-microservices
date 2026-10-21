@@ -1,12 +1,5 @@
-"""Background job that finishes sagas nobody is driving any more:
-
-* bookings left in COMPENSATING because a compensation call failed
-  (e.g. payment-service was down when we tried to refund)
-* bookings stuck in PENDING / SEATS_HELD / PAYMENT_DONE because the process
-  handling the request died half way
-
-It also purges idempotency keys older than the configured TTL.
-"""
+"""Background job for sagas nobody is driving any more: retries failed compensations and
+undoes bookings left half way by a crash. Also purges old idempotency keys."""
 import logging
 import threading
 from datetime import timedelta
@@ -50,8 +43,9 @@ class SagaRecovery:
                 log.exception("saga recovery round failed")
 
     def run_once(self) -> int:
-        # Failed compensations are retried once they have been quiet for a short while;
-        # in-flight sagas are only touched once they have been quiet for much longer.
+        # failed compensations are retried after a short quiet time, in-flight sagas after a long one
+        # TODO: "stuck" only means updated_at is old, so a step slower than SAGA_STUCK_AFTER_SECONDS
+        # would get compensated while still running. A heartbeat would fix that.
         with self.engine.begin() as conn:
             retry = repo.claim_stuck_bookings(conn, (S.COMPENSATING,), self.compensation_retry_seconds, 10)
             stuck = repo.claim_stuck_bookings(conn, (S.PENDING, S.SEATS_HELD, S.PAYMENT_DONE),

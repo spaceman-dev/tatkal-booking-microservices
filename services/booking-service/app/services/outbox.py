@@ -1,9 +1,7 @@
-"""Delivers outbox events to notification-service.
+"""Sends outbox events to notification-service, at least once.
 
-At-least-once: an event is marked SENT only after notification-service accepted
-it, so a crash in between means it is sent again - which is fine because
-notification-service drops duplicates by event_id. If notification-service is
-down, bookings still confirm; the messages simply go out when it is back.
+A row is marked SENT only after notification-service accepts it, so a crash in between
+sends it again. That's fine, notification-service drops duplicates by event_id.
 """
 import logging
 import threading
@@ -60,7 +58,7 @@ class OutboxDispatcher:
                                     "booking_id": str(event["booking_id"]), "attempt": attempts,
                                     "duplicate_at_consumer": bool(result and result.get("duplicate"))})
                 except DownstreamRejected as rej:
-                    # The consumer says the event itself is bad; retrying will not help.
+                    # 4xx means the event itself is bad, retrying won't help
                     repo.mark_dead(conn, event["event_id"], attempts, f"{rej.status} {rej.code}")
                     log.error("outbox event rejected by notification-service",
                               extra={"event_id": str(event["event_id"]), "error_code": rej.code})

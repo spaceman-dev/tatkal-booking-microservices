@@ -8,8 +8,8 @@ from app.repository.tables import outbox
 
 
 def claim_due(conn: Connection, limit: int) -> list[dict]:
-    """Rows stay locked until the surrounding transaction ends, so two dispatchers
-    (e.g. two replicas) never pick the same event."""
+    """Rows stay locked until the caller's transaction ends, so another replica's
+    dispatcher skips them."""
     rows = conn.execute(
         select(outbox)
         .where(outbox.c.status == "PENDING", outbox.c.next_attempt_at <= func.now())

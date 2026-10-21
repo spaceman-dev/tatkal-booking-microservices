@@ -32,10 +32,10 @@ def to_out(booking: dict) -> dict:
     response_model=BookingOut,
     summary="Book Tatkal seats (runs the booking saga)",
     description=(
-        "Holds the seats, takes the payment and confirms the seats, compensating if a step fails. "
-        "Requires an `Idempotency-Key`: repeating the request with the same key and body returns the "
-        "stored result (header `Idempotent-Replayed: true`) and never books or charges twice; the same key "
-        "with a different body is rejected with 422."
+        "Holds the seats, takes the payment and confirms the seats. If a step fails, the earlier ones are "
+        "undone. Needs an `Idempotency-Key`: a repeat with the same key and body gets the stored result "
+        "(header `Idempotent-Replayed: true`), so nothing is booked or charged twice. The same key with a "
+        "different body gets 422."
     ),
     responses={
         400: {"description": "Missing or malformed Idempotency-Key"},
@@ -57,7 +57,7 @@ def create_booking(
 ):
     key = require_key(idempotency_key)
     passengers = [p.model_dump() for p in body.passengers]
-    validate_passengers(passengers)  # BR2 - rejected before anything is stored or reserved
+    validate_passengers(passengers)  # BR2, checked before anything is stored or held
 
     command = BookingRequest(
         train_no=body.train_no, journey_date=body.journey_date, travel_class=body.travel_class,
@@ -106,7 +106,7 @@ def get_saga_log(booking_id: UUID, saga: BookingSaga = Depends(saga_service)):
     "/bookings/{booking_id}/cancel",
     response_model=BookingOut,
     summary="Cancel a confirmed booking (BR7)",
-    description="Seats go back to the quota; a confirmed Tatkal ticket gets no refund. Cancelling twice is harmless.",
+    description="Seats go back to the quota, no refund for a confirmed Tatkal ticket. Cancelling twice is harmless.",
     responses={
         404: {"description": "No such booking (BOOKING_NOT_FOUND)"},
         409: {"description": "Booking is not CONFIRMED (BOOKING_NOT_CANCELLABLE)"},

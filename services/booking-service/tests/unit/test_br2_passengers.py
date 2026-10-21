@@ -1,4 +1,4 @@
-"""BR2 - a Tatkal booking has 1 to 4 passengers, each at least 5 years old."""
+"""BR2: a Tatkal booking has 1 to 4 passengers, each at least 5 years old."""
 import pytest
 
 from app.domain.booking_rules import validate_passengers

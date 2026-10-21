@@ -9,7 +9,7 @@ from app.repository.tables import bookings, outbox, passengers, saga_log
 
 
 class ConcurrentUpdate(Exception):
-    """The booking was not in the state we expected - someone else moved it."""
+    """Booking was no longer in the status we expected, someone else moved it."""
 
 
 def insert_booking(conn: Connection, booking: dict, passenger_rows: list[dict]) -> None:
@@ -46,8 +46,8 @@ def list_bookings(conn: Connection, status: str | None, train_no: str | None, jo
 
 
 def transition(conn: Connection, booking_id: UUID, from_status: str, to_status: str, **fields) -> None:
-    """BR5 in the database: the UPDATE only matches if the booking is still in
-    `from_status`, so two actors can never both move the same booking."""
+    """BR5 at the DB level: the UPDATE only matches while the booking is still in
+    `from_status`, so two workers can't both move it."""
     assert_transition(from_status, to_status)
     result = conn.execute(
         update(bookings)
@@ -79,9 +79,9 @@ def add_outbox_event(conn: Connection, event_id: UUID, booking_id: UUID, event_t
 
 
 def claim_stuck_bookings(conn: Connection, statuses: tuple[str, ...], older_than_seconds: int, limit: int) -> list[UUID]:
-    """Picks bookings that stopped moving. Bumping updated_at hides them from other
-    replicas for another `older_than_seconds`, and SKIP LOCKED avoids waiting on rows
-    a live request is still updating."""
+    """Claims bookings that stopped moving. Bumping updated_at hides them from other
+    replicas for another `older_than_seconds`, and SKIP LOCKED means we don't wait on
+    rows a live request is updating."""
     rows = conn.execute(
         text(
             """

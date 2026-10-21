@@ -171,8 +171,9 @@ only, 402), bank unreachable (release only, 503), bank silent (refund-if-taken p
 
 ![Booking states (BR5). booking-service checks every transition against this table and applies it with a conditional UPDATE, so two actors can never both move a booking.](../diagrams/state-booking.svg){width=100%}
 
-A seat hold goes HELD -> CONFIRMED -> RELEASED (or HELD -> RELEASED), and a payment PENDING -> CAPTURED ->
-REFUNDED (or PENDING -> DECLINED / FAILED / VOIDED); both diagrams are in `docs/diagrams/`. The hold is
+A seat hold goes HELD -> CONFIRMED -> RELEASED (or HELD -> RELEASED, also after a 10-minute expiry), and a
+payment PENDING -> CAPTURED -> REFUNDED (or PENDING -> DECLINED / FAILED / VOIDED); both diagrams are in
+`docs/diagrams/`. The hold is
 what makes the saga safe for other passengers: while a booking is between steps 1 and 3 its seats are
 HELD, so nobody else can sell them (a semantic lock).
 
@@ -180,7 +181,7 @@ HELD, so nobody else can sell them (a semantic lock).
 
 ## 4.1 One database per service
 
-![booking_db: bookings and passengers, the saga log, the outbox and the stored idempotency keys.](../diagrams/er-booking.svg){width=84%}
+![booking_db: bookings and passengers, the saga log, the outbox and the stored idempotency keys.](../diagrams/er-booking.svg){width=74%}
 
 ![inventory_db: trains, the Tatkal quota per train/date/class, and the seat holds.](../diagrams/er-inventory.svg){width=100%}
 
@@ -239,6 +240,7 @@ service serves Swagger UI at `/docs`; exported OpenAPI 3.1 files are in `docs/op
 | inventory | `POST /api/v1/holds/{id}/confirm`, `/release` | step 3 / compensation | 200, 404, 409 |
 | payment | `POST /api/v1/payments` (Idempotency-Key) | step 2 | 201, 402, 409, 503, 504 |
 | payment | `POST /api/v1/payments/{id}/refund` | compensation, at most once | 200, 409, 503 |
+| payment | `POST /api/v1/payments/void` | compensation when no payment exists yet | 200 |
 | payment | `GET /api/v1/payments?booking_id=`, `/{id}` | read | 200, 404 |
 | notification | `POST /api/v1/notifications` | deliver an event, duplicates ignored | 201, 200 duplicate, 422, 503 |
 | all | `GET /health` | liveness + database check | 200, 503 |
@@ -343,7 +345,7 @@ would work but turns the rush into serialization failures the client must retry.
 bookings at a fresh 5-seat quota through the full saga. Naive: **20 of 20 confirmed**, 20 passengers
 charged Rs 22,100 for seats worth Rs 5,525, counter left at 4 with 20 holds. Atomic: **5 confirmed, 15
 rejected with 409**, `available_seats = 0`, 5 confirmed holds, 5 captured payments, 15 failed bookings
-with no payment - all checks pass. The same race is an integration test (20 threads, real PostgreSQL).
+with no payment - all checks pass.
 
 **Limitations.** The quota row is a hot row: every booking for one train/date/class queues on its lock
 (a few milliseconds each). That is fine for hundreds of concurrent requests; at Tatkal-day scale we would
@@ -365,7 +367,9 @@ must not book or charge twice, and must give the client the same answer it misse
    - a different fingerprint gets `422 IDEMPOTENCY_KEY_REUSED`;
    - if the key is completed, the stored response is replayed with `Idempotent-Replayed: true`;
    - if the key is still in progress, the request waits for it and then replays the stored response.
-5. If the owner dies, its lease expires and the next request takes over. Keys are purged after 24 hours.
+5. If the owner dies, its lease expires and the next request takes over, reusing any booking already
+   made with the key (UNIQUE on bookings), so a takeover never starts a second saga. An owner token stops
+   the old owner overwriting the result. Keys are purged after 24 hours.
 
 Behind this are two more layers: `UNIQUE (booking_id)` on payments refuses a second charge even with a
 new key (409, BR4), and every call to the bank carries the same gateway key, so a retry after a timeout
@@ -381,11 +385,11 @@ progress" is simpler; we wait instead so duplicates get the real result (bounded
 byte-identical responses, the 2nd and 3rd marked as replays. A declined (402) booking is replayed too, and
 the bank's request counter does not move on the repeat. The same key with one passenger instead of two
 gets 422; no key gets 400. **Ten identical requests released together** produce one booking, one payment
-and one capture at the bank: one original response and nine replays, all byte-identical. The booking-service
-log shows nine "same idempotency key is being processed, waiting" lines within one millisecond.
+and one capture at the bank: one original response and nine replays, all byte-identical.
 
 **Limitations.** A waiting duplicate holds a worker thread while polling every 100 ms. Keys are global
-rather than per user (no authentication). A replay after 24 hours is treated as a new request.
+rather than per user (no authentication). After 24 hours a repeat is answered from the booking itself,
+not from the stored bytes.
 
 ## 6.3 Challenge 3C - Saga with compensation
 
@@ -420,7 +424,7 @@ retries an idempotent call once.
 payment REFUNDED, hold RELEASED, quota restored, refund SMS sent. The whole request is traced through all
 five services' logs by one correlation id. Failure at step 2 (declined): only RELEASE runs. A failed
 compensation: with the bank's refund API down, the booking stays COMPENSATING (seats already released);
-when the bank recovers, the recovery job completes the refund with no API call, 23 s later. A final check
+when the bank recovers, the recovery job completes the refund with no API call, 21 s later. A final check
 reads all four databases and finds every booking consistent.
 
 **Alternatives.** Choreography would need a broker and spread the flow over four services; with one clear
@@ -428,19 +432,25 @@ owner of the booking lifecycle, orchestration is easier to follow and test (sect
 (retry step 3 until it works) is friendlier, but a confirm can fail for good, so we compensate backwards.
 The hold/confirm/release API is effectively Try-Confirm-Cancel on the inventory side.
 
+**Overlaps.** If booking gives up on a charge that is still running, its refund gets 503
+`PAYMENT_IN_PROGRESS` until the charge settles; if no payment exists yet, booking voids it
+(`POST /payments/void`) so the late charge is refused. A charge stops retrying once its payment is closed,
+and a capture that lands on a voided payment is refunded at once. Holds still HELD after 10 minutes are
+released as a last safety net.
+
 **Limitations.** Seats of a booking that ends up compensated are held for its duration (usually well under
 a second, a few seconds more when the bank is slow). A saga quiet for 60 s is assumed dead; timeouts keep
-real sagas well below that. Holds do not expire on a timer (Challenge 3B was not chosen); a charge that reaches
-the bank after we reconciled it as "never charged" would need a manual refund (it is logged as an error).
+real sagas well below that. We trust the bank's lookup by key to include requests still in flight, as
+the mock bank does; with a real bank the settlement report would be the final check.
 
 ## 6.4 The slow or failing bank (condition e)
 
 Although 3A was not our chosen challenge, payment-service needed basic resilience to make the saga
 honest. Every bank call has a 2 s timeout and up to three attempts with exponential backoff and full
-jitter (0-200 ms, then 0-400 ms), always with the same gateway key. Outcomes are classified carefully. A
+jitter (0-200 ms, then 0-400 ms), always with the same gateway key. A
 connection refused, or 503 on every attempt, means nothing was taken (FAILED, 503). A request that was
 sent but never answered means the outcome is unknown: the payment stays PENDING and returns 504. A
-PENDING payment is reconciled with the bank before any refund.
+PENDING payment is reconciled with the bank before any refund, once its charge can no longer be running.
 
 `scripts/bank_failure_modes.py` (evidence in `evidence/bank-failures/`) books through the normal API
 under each bank behaviour:
@@ -448,36 +458,36 @@ under each bank behaviour:
 - **Slow bank (3 s).** The first attempt times out and the retry gets the bank's stored result. The
   booking is CONFIRMED after 3.1 s with two attempts and exactly one capture.
 - **Bank down.** The booking fails in 0.4 s with 503, the payment is FAILED and the seats are released.
-- **Flaky bank (60 % of calls fail).** Bookings succeed on the second or third attempt, each captured
-  once.
+- **Flaky bank (60 % of calls fail).** Three of four bookings succeeded (one on a retry) and one failed
+  cleanly after three attempts with its seats released; none was captured twice.
 
 # 7. Testing
 
 **Strategy.** Most tests are cheap unit tests of the business rules, and fewer, slower tests run against
 real infrastructure:
 
-- **Unit tests** (91) test every rule BR1-BR7 as plain functions, plus the fingerprint, backoff, retry
+- **Unit tests** (94) test every rule BR1-BR7 as plain functions, plus the fingerprint, backoff, retry
   classification (with `httpx.MockTransport`, no network) and message templates.
-- **Integration tests** (11) run against the service's real PostgreSQL, in a throwaway schema per run:
-  20 threads racing for 5 seats (and the naive version overselling), 10 parallel same-key payments,
-  5 parallel payments for one booking with different keys, duplicate notification events, and the saga
-  with fake inventory and payment services - the step-3 failure order, a failed compensation finished by
-  recovery, an abandoned saga, and an unknown hold.
+- **Integration tests** (30) run against the service's real PostgreSQL, in a throwaway schema per run:
+  20 threads racing for 5 seats (and the naive version overselling), parallel same-key and same-booking
+  payments, a hold retry overlapping the first attempt, hold expiry, refunds and voids racing a charge,
+  key takeover, duplicate and partly failed notifications, and the saga with fake inventory and payment
+  services (step-3 failure order, failed compensation finished by recovery, abandoned saga, unknown hold).
 - **mock-bank-gateway** has 8 component tests, including 10 concurrent same-key charges.
 - **End-to-end** (7, `tests/e2e/`) drive the main transaction through the public APIs: book, pay,
   confirm and notify (and the correlation id appears in four services' logs), plus the step-3 failure,
   a declined payment, a sold-out train, a cancellation and BR2 violations.
 - **Challenge scripts** are scenario tests that end with database checks.
 
-**Results.** All 110 service tests and 7 end-to-end tests pass (`evidence/tests/`); all three challenge
+**Results.** All 132 service tests and 7 end-to-end tests pass (`evidence/tests/`); all three challenge
 scripts pass on fresh databases.
 
 | Service | Unit | Integration | Rules covered |
 |---|---|---|---|
-| inventory-service | 23 | 2 | BR1, BR3 |
-| payment-service | 28 | 2 | BR4 |
-| notification-service | 10 | 2 | (duplicate events) |
-| booking-service | 30 | 5 | BR2, BR5, BR6, BR7 |
+| inventory-service | 23 | 4 | BR1, BR3 |
+| payment-service | 31 | 10 | BR4 |
+| notification-service | 10 | 5 | (duplicate events) |
+| booking-service | 30 | 11 | BR2, BR5, BR6, BR7 |
 | mock-bank-gateway | 8 (component) | - | - |
 
 Not covered: load beyond about 30 concurrent requests, several instances of one service (Assignment 2),
@@ -503,7 +513,8 @@ and network partitions between a service and its database.
 - **The rush itself.** A real Tatkal opening needs admission control - a virtual waiting room or rate
   limiting in front of booking - and a way past the single hot quota row.
 - **Resilience.** There is no circuit breaker around the bank yet (the next step after timeouts and
-  retries), holds do not expire on a timer (3B), and notifications could move to a broker (3D).
+  retries), holds expire only through a coarse 10-minute sweep rather than a real reservation timer (3B),
+  and notifications could move to a broker (3D).
 - **Operations.** Tables are created at start-up; a real system needs migrations (Alembic). There are no
   metrics or traces yet beyond correlated logs. Dev passwords live in `.env` files and will move to
   Kubernetes secrets in Assignment 2. Seat allocation, waiting list, RAC and charting are also missing.
@@ -511,7 +522,7 @@ and network partitions between a service and its database.
 # 10. Links
 
 Source code: <https://github.com/spaceman-dev/tatkal-booking-microservices>\
-Google Drive (demo video, report, documents): [add link before submission] - Demo video: [add link before submission]
+Google Drive (video, report, documents): [add link before submission] - Demo video: [add link]
 
 # Appendix A - Contribution table {.newpage}
 
@@ -543,8 +554,10 @@ check-then-update looked correct in every single-request test, so we kept a naiv
 switch and raced 20 bookings against it: it sold all 20 seats of a 5-seat quota and left the counter at
 4. Seeing that number made it obvious why the check and the decrement must be one statement, and why the
 CHECK constraint alone could never catch a lost update. I also learned that "idempotent per booking_id"
-needs a unique constraint *and* handling for the race where two inserts collide. With more time I would
-split the hot quota row into buckets and add hold expiry, so a stuck saga could never keep seats for long.
+needs more than a unique constraint: a review found that a retry overlapping the first hold request got
+409 and left that hold's seats owned by nobody. Inserting the hold row before taking the seats fixed it,
+and we added a 10-minute expiry for holds as a safety net. With more time I would split the hot quota row
+into buckets.
 
 **Atharva Kadam (payment-service and mock-bank-gateway).** I built the payment service, its client for
 the bank and the mock bank itself. The hardest problem was the difference between "the bank said no" and
@@ -552,21 +565,22 @@ the bank and the mock bank itself. The hardest problem was the difference betwee
 a timeout after the request was sent is unknown. I handled it by keeping such payments PENDING,
 retrying only with the same idempotency key, and reconciling with the bank before any refund. Making the
 mock bank deduplicate requests while the first one is still being processed is what lets the slow-bank
-run end with exactly one capture over two attempts. A small bug taught me something too: the bank's reset
-endpoint returned a body with a 204 status, which broke the HTTP connection for the next request on the
-same keep-alive socket. I would change two things: add a circuit breaker so a dead bank fails fast instead
-of costing three attempts per request, and give the mock bank a "void order" call to close the
-late-capture gap described in section 6.3.
+run end with exactly one capture over two attempts. A review also found a gap I had missed: a refund
+arriving while my charge was still retrying voided the payment, and a capture that came back afterwards
+was kept. Closing it took a "still wanted?" check before every attempt, a 503 while a charge may still be
+running, and an immediate refund for a capture that lands on a voided payment. Next I would add a circuit
+breaker so a dead bank fails fast instead of costing three attempts per request.
 
 **N Abhishek Reddy (notification-service and end-to-end tests).** I owned notifications and the
 end-to-end and saga test scripts. The interesting part of notifications was that the outbox delivers *at
-least* once, so my service had to be an idempotent consumer: it claims each event with a unique row
-before sending and gives the claim back if the SMS provider fails, so a retry can send it. The hardest
-problem on the testing side was making failure scenarios deterministic. Our first attempt at "the
-refund fails" depended on timing; adding a partial-outage mode to the mock bank (refunds down, charges
-up) made it repeatable. I also found that our integration tests were writing into the same tables as the
-running service, so we moved them into a throwaway schema. Next time I would add a dead-letter view for
-events that can never be delivered, and run the e2e suite in CI on every push.
+least* once, so my service had to be an idempotent consumer: it claims each channel of an event with a
+unique row, marks it SENT as soon as it goes out, and on a provider failure gives back only what was not
+sent. My first version released the whole event when only the e-mail failed, so the retry sent the SMS
+twice, and it answered "duplicate" while another delivery was still sending. The hardest problem on the
+testing side was making failure scenarios deterministic. Our first attempt at "the refund fails" depended
+on timing; adding a partial-outage mode to the mock bank (refunds down, charges up) made it repeatable.
+Next time I would add a dead-letter view for events that can never be delivered, and run the e2e suite in
+CI on every push.
 
 # Appendix C - AI-use declaration
 
@@ -577,8 +591,9 @@ here is what it was used for:
   the choice of Challenge 3C, working from the assignment brief and our lecture slides and lab sheets.
 - **Code.** It wrote the code of the five services, the unit, integration and end-to-end tests, the run
   and challenge scripts, and the Mermaid sources of the diagrams.
-- **Running and evidence.** It ran the test suites and the scripts that produced the files in
-  `evidence/`. The outputs in that folder are unedited.
+- **Running, evidence and review.** It ran the test suites and the scripts that produced the files in
+  `evidence/` (the outputs are unedited). A separate Copilot review agent then reviewed the code; the six
+  problems it found (mostly retries, compensations and late results racing each other) were fixed and retested.
 - **Writing.** It drafted the README files, this report (including first drafts of the reflections in
   Appendix B) and the video script.
 
@@ -589,10 +604,10 @@ the team checked the work.]
 
 | Rule | Code | Tests |
 |---|---|---|
-| BR1 | `inventory-service/app/repository/inventory_repo.py` (`decrement_if_available`), `services/holds.py`, `domain/allocation.py` | `tests/unit/test_br1_allocation.py`, `tests/integration/test_br1_concurrent_holds.py`, challenge 1 |
-| BR2 | `booking-service/app/domain/booking_rules.py` (`validate_passengers`), called in `api/routes.py` | `tests/unit/test_br2_passengers.py`, e2e |
+| BR1 | `inventory-service/app/repository/inventory_repo.py` (`decrement_if_available`), `services/holds.py`, `domain/allocation.py` | `tests/unit/test_br1_allocation.py`, `tests/integration/test_br1_concurrent_holds.py`, `test_hold_retry_and_expiry.py`, challenge 1 |
+| BR2 | `booking-service/app/domain/booking_rules.py` (`validate_passengers`) | `tests/unit/test_br2_passengers.py`, e2e |
 | BR3 | `inventory-service/app/domain/fares.py` (`tatkal_charge_paise`, `quote`) | `tests/unit/test_br3_fares.py`, e2e |
-| BR4 | `payment-service/app/domain/payment_rules.py`, `services/payments.py`, `UNIQUE(booking_id)` | `tests/unit/test_br4_payment_rules.py`, `tests/integration/test_idempotent_payments_db.py`, challenge 2 |
+| BR4 | `payment-service/app/domain/payment_rules.py`, `services/payments.py`, `UNIQUE(booking_id)` | `tests/unit/test_br4_payment_rules.py`, `tests/integration/test_idempotent_payments_db.py`, `test_payment_fencing_db.py`, challenge 2 |
 | BR5 | `booking-service/app/domain/booking_rules.py` (`TRANSITIONS`), `repository/bookings_repo.py` (`transition`) | `tests/unit/test_br5_state_machine.py` |
 | BR6 | `booking_rules.py` (`compensation_plan`), `services/saga.py`, `services/recovery.py` | `tests/unit/test_br6_compensation_plan.py`, `tests/integration/test_saga_db.py`, e2e, challenge 3 |
 | BR7 | `booking_rules.py` (`tatkal_cancellation`), `services/saga.py` (`cancel`) | `tests/unit/test_br7_cancellation.py`, e2e |

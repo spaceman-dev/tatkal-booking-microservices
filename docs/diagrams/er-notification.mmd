@@ -8,5 +8,7 @@ erDiagram
         string recipient
         text message
         string status "PENDING SENT"
+        string claim_token "delivery sending it"
+        timestamptz locked_until "claim lease"
         timestamptz sent_at
     }

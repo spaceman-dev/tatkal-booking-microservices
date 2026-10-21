@@ -25,7 +25,9 @@ paths:
       - notifications
       summary: Deliver a booking event as SMS (and e-mail if given)
       description: 'Called by booking-service''s outbox dispatcher, which may deliver the same event more than once.
-        The `event_id` makes this safe: a repeat returns 200 with `duplicate: true` and sends nothing.'
+        The `event_id` makes this safe: each channel is sent at most once per event, and a repeat returns 200 with
+        `duplicate: true` and sends nothing. A repeat that arrives while the first delivery is still sending waits
+        for it (up to 2 s).'
       operationId: publish_api_v1_notifications_post
       requestBody:
         required: true
@@ -49,7 +51,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
-          description: Provider failed; nothing recorded, retry later (PROVIDER_UNAVAILABLE)
+          description: Provider failed - channels already sent stay sent, the rest are released (PROVIDER_UNAVAILABLE);
+            or another delivery is still sending the event (NOTIFICATION_IN_PROGRESS). Retry later either way.
           content:
             application/problem+json:
               schema:

@@ -127,8 +127,10 @@ so a missing value stops the service at start-up instead of quietly using the wr
 | `GATEWAY_URL`, `GATEWAY_TIMEOUT_SECONDS`, `GATEWAY_MAX_ATTEMPTS`, `GATEWAY_BACKOFF_BASE_SECONDS`, `GATEWAY_BACKOFF_CAP_SECONDS` | payment | `http://localhost:8099`, `2.0`, `3`, `0.2`, `2.0` | bank calls: timeout, retries, exponential backoff with full jitter |
 | `SEED_DEMO_DATA`, `SEED_DAYS` | inventory | `true`, `7` | demo trains and quota |
 | `HOLD_STRATEGY`, `NAIVE_THINK_TIME_MS` | inventory | `atomic`, `150` | `naive` exists only to demonstrate the race in Challenge 1 |
+| `HOLD_EXPIRY_ENABLED`, `HOLD_TTL_SECONDS`, `HOLD_SWEEP_INTERVAL_SECONDS` | inventory | `true`, `600`, `30` | safety net: holds still HELD after 10 minutes are released |
 | `ADMIN_API_ENABLED` | inventory, notification | `true` | dev-only `/api/v1/admin/*` (fault injection, strategy switch). Turn off outside a dev machine |
 | `PROVIDER_FAILURE_RATE`, `PROVIDER_LATENCY_MS` | notification | `0.0`, `30` | simulated SMS provider |
+| `CLAIM_LEASE_SECONDS`, `DUPLICATE_WAIT_SECONDS` | notification | `30`, `2.0` | how long a message being sent stays claimed; how long a duplicate event waits for it |
 | `GATEWAY_MODE`, `GATEWAY_LATENCY_MS`, `GATEWAY_SLOW_LATENCY_MS`, `GATEWAY_FAILURE_RATE` | mock-bank-gateway | `normal`, `80`, `4000`, `0.5` | start-up behaviour; can be changed at runtime with `PUT /gateway/v1/admin/mode` |
 
 Example: `HOLD_STRATEGY=naive python scripts/stack.py restart inventory-service`.
@@ -141,8 +143,10 @@ python scripts/stack.py test        # unit + integration tests of every service 
 
 - **Unit tests** (`services/*/tests/unit`) cover every business rule BR1-BR7 and need nothing running.
 - **Integration tests** (`services/*/tests/integration`) use the service's real PostgreSQL database:
-  20 threads racing for 5 seats, parallel duplicate payments, duplicate notification events, the saga
-  with forced failures, and recovery after a simulated crash. They skip themselves if the database is down.
+  20 threads racing for 5 seats, a retried hold overlapping the first one, parallel duplicate payments,
+  refunds racing a charge that is still running, duplicate and partly failed notification events, the
+  saga with forced failures, and recovery after a simulated crash. They skip themselves if the database
+  is down.
 - **End-to-end test** of the main transaction, through the public APIs of all services (stack running):
 
 ```bash

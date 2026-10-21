@@ -22,8 +22,18 @@ RETURNING available_seats
 
 PostgreSQL locks the row for the update; a concurrent request waits and then re-checks the `WHERE`
 clause against the committed value, so it matches no row once the seats are gone and gets
-`409 SEATS_UNAVAILABLE`. The hold row is inserted in the same transaction. `CHECK (available_seats >= 0)`
-is only a safety net.
+`409 SEATS_UNAVAILABLE`. The hold row is inserted in the same transaction, just before the decrement,
+with `ON CONFLICT (booking_id) DO NOTHING`: a retried hold for the same booking waits for the first
+attempt's transaction and returns its hold instead of competing for the last seats.
+`CHECK (available_seats >= 0)` is only a safety net.
+
+## Holds nobody finishes
+
+The booking saga confirms or releases every hold within seconds, and booking-service's recovery job
+compensates sagas that die half way. As a last safety net, `services/expiry.py` releases holds that are
+still HELD after `HOLD_TTL_SECONDS` (10 minutes) and returns their seats, checking every
+`HOLD_SWEEP_INTERVAL_SECONDS`. It only touches HELD holds (never a paid, CONFIRMED one) and uses
+`FOR UPDATE SKIP LOCKED`, so it is safe with several replicas.
 
 `HOLD_STRATEGY=naive` (or `PUT /api/v1/admin/hold-strategy`) switches to a check-then-update version that
 exists only so the Challenge 1 script can show the race. It is off by default.

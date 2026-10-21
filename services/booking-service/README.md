@@ -13,7 +13,7 @@ Owns bookings and their lifecycle, and orchestrates the booking saga. Owner: Dhr
 | Step | Call | Compensation |
 |---|---|---|
 | 1. hold seats | `POST inventory /api/v1/holds` | `POST /api/v1/holds/{id}/release` |
-| 2. take payment | `POST payment /api/v1/payments` (Idempotency-Key `booking-{id}`) | `POST /api/v1/payments/{id}/refund` |
+| 2. take payment | `POST payment /api/v1/payments` (Idempotency-Key `booking-{id}`) | `POST /api/v1/payments/{id}/refund`, or `POST /api/v1/payments/void` if no payment exists yet |
 | 3. confirm seats (pivot) | `POST inventory /api/v1/holds/{id}/confirm` | none - after this the booking stands |
 | 4. notify | outbox row, delivered later to `POST notification /api/v1/notifications` | none - retried until delivered |
 
@@ -24,6 +24,11 @@ Two background threads run inside the service:
   `OUTBOX_POLL_SECONDS`, with exponential backoff when it is down;
 - **saga recovery** (`services/recovery.py`) retries compensations that failed and undoes sagas left half
   way by a crash.
+
+`POST /api/v1/bookings` needs an `Idempotency-Key` (`services/idempotency.py`, Challenge 2). A repeat
+replays the stored response. If the request that owned a key died, the next one takes the key over but
+does not start a second saga: `bookings.idempotency_key` is UNIQUE, so it answers with the booking the
+first request made, or `409 IDEMPOTENCY_REQUEST_IN_PROGRESS` (not stored) while that saga is still running.
 
 ## API
 

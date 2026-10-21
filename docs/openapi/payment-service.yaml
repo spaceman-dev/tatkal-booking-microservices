@@ -119,6 +119,34 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/v1/payments/void:
+    post:
+      tags:
+      - payments
+      summary: Void the payment of a booking (compensation when no payment is visible yet)
+      description: If the booking has no payment yet, records a VOIDED one (failure_reason VOIDED_BEFORE_CHARGE),
+        so a charge request still on its way is refused by UNIQUE(booking_id) and never reaches the bank. If the
+        booking already has a payment, it is returned unchanged and can be refunded as usual. Safe to repeat.
+      operationId: void_payment_api_v1_payments_void_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoidIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentOut'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /api/v1/payments/{payment_id}:
     get:
       tags:
@@ -196,7 +224,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
-          description: Gateway did not confirm; safe to retry (REFUND_PENDING / GATEWAY_UNAVAILABLE)
+          description: Charge still in flight (PAYMENT_IN_PROGRESS) or the gateway did not confirm (REFUND_PENDING
+            / GATEWAY_UNAVAILABLE); safe to retry
           content:
             application/problem+json:
               schema:
@@ -365,6 +394,41 @@ components:
       - status
       - created_at
       title: RefundOut
+    VoidIn:
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+          title: Booking Id
+        amount_paise:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Amount Paise
+        currency:
+          type: string
+          const: INR
+          title: Currency
+          default: INR
+        method:
+          type: string
+          enum:
+          - UPI
+          - CARD
+          title: Method
+        payer_ref:
+          type: string
+          maxLength: 64
+          minLength: 3
+          title: Payer Ref
+      additionalProperties: false
+      type: object
+      required:
+      - booking_id
+      - amount_paise
+      - method
+      - payer_ref
+      title: VoidIn
+      description: Same details as the charge, so the VOIDED record looks like the payment that never happened.
     Problem:
       title: Problem
       type: object

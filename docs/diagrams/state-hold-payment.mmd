@@ -3,14 +3,16 @@ stateDiagram-v2
     state "Seat hold (inventory-service)" as hold {
         [*] --> HELD: POST /holds
         HELD --> CONFIRMED: confirm
-        HELD --> RELEASED: release (compensation)
+        HELD --> RELEASED: release (compensation) or expiry after 10 min
         CONFIRMED --> RELEASED: release (cancellation)
     }
     state "Payment (payment-service)" as pay {
         [*] --> PENDING: POST /payments
+        [*] --> VOIDED: void before any charge (compensation)
         PENDING --> CAPTURED: bank captured
         PENDING --> DECLINED: bank declined
         PENDING --> FAILED: bank unreachable
         PENDING --> VOIDED: timed out, bank has no charge
         CAPTURED --> REFUNDED: refund (once, in full)
+        VOIDED --> REFUNDED: late capture, refunded at once
     }

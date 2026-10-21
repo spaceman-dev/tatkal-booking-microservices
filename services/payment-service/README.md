@@ -34,13 +34,30 @@ is classified carefully:
 A PENDING payment is reconciled with the bank (`GET /gateway/v1/charges?idempotency_key=`) before a refund,
 so "refund whatever may have been taken" is always safe.
 
+## When a refund overlaps the charge it undoes
+
+booking-service may give up on a charge (its own timeout) while this service is still retrying the bank,
+and start compensating. Each overlap has an answer:
+
+- **Refund while the charge may still be running** (PENDING, no outcome yet, younger than the longest a
+  charge can take): `503 PAYMENT_IN_PROGRESS` with `Retry-After`. The saga stays COMPENSATING and its
+  recovery job asks again later, when the payment is settled.
+- **No payment yet** (the charge request has not arrived): booking-service calls
+  `POST /api/v1/payments/void`, which records a VOIDED payment (`VOIDED_BEFORE_CHARGE`). The charge that
+  arrives afterwards hits `UNIQUE (booking_id)` and never reaches the bank.
+- **Payment closed between two attempts**: before every attempt the charge checks that its payment is
+  still PENDING; if not, no further attempt is sent.
+- **Capture lands on a payment already voided**: it is refunded at once (VOIDED -> REFUNDED). If the bank
+  refuses that refund, the refund row stays PENDING and `POST /payments/{id}/refund` retries it.
+
 ## API
 
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/api/v1/payments` | charge; needs `Idempotency-Key` |
 | GET | `/api/v1/payments?booking_id=`, `/api/v1/payments/{id}` | look up |
-| POST | `/api/v1/payments/{id}/refund` | full refund; harmless to repeat |
+| POST | `/api/v1/payments/{id}/refund` | full refund; harmless to repeat; 503 while the charge may still be running |
+| POST | `/api/v1/payments/void` | compensation when booking-service sees no payment yet; returns an existing payment unchanged |
 | GET | `/health` | includes a database check |
 
 Spec: [`docs/openapi/payment-service.yaml`](../../docs/openapi/payment-service.yaml).

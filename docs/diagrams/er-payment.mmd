@@ -10,7 +10,7 @@ erDiagram
         string payer_ref
         string status "PENDING CAPTURED DECLINED FAILED REFUNDED VOIDED"
         string gateway_charge_id
-        string failure_reason
+        string failure_reason "e.g. GATEWAY_TIMEOUT or VOIDED_BEFORE_CHARGE"
         int gateway_attempts
     }
     REFUNDS {
@@ -28,5 +28,6 @@ erDiagram
         int response_code
         text response_body
         string resource_id
+        string owner_token "request that owns the key"
         timestamptz locked_until
     }

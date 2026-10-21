@@ -17,7 +17,7 @@ erDiagram
         uuid payment_id "payment-service id, no FK"
         string failure_reason
         string compensation_steps "still to do"
-        string idempotency_key
+        string idempotency_key UK "one booking per key"
         timestamptz updated_at
     }
     PASSENGERS {
@@ -51,5 +51,6 @@ erDiagram
         int response_code
         text response_body
         string resource_id
+        string owner_token "request that owns the key"
         timestamptz locked_until
     }

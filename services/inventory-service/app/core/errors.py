@@ -20,12 +20,14 @@ PROBLEM_TYPE_BASE = "https://tatkal.example/problems/"
 class AppError(Exception):
     """Raised by the service layer; turned into a problem+json response."""
 
-    def __init__(self, status: int, code: str, title: str, detail: str | None = None, **extra):
+    def __init__(self, status: int, code: str, title: str, detail: str | None = None, *,
+                 headers: dict[str, str] | None = None, **extra):
         super().__init__(detail or title)
         self.status = status
         self.code = code
         self.title = title
         self.detail = detail
+        self.headers = headers
         self.extra = extra
 
     def to_problem(self, instance: str | None = None) -> dict:
@@ -68,7 +70,7 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _app_error(request: Request, exc: AppError):
         if exc.status >= 500:
             log.warning("request failed: %s", exc.code, extra={"error_code": exc.code})
-        return problem_response(exc.to_problem(request.url.path))
+        return problem_response(exc.to_problem(request.url.path), headers=exc.headers)
 
     @app.exception_handler(RuleViolation)
     async def _rule_violation(request: Request, exc: RuleViolation):

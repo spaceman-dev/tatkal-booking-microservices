@@ -1,0 +1,139 @@
+====================================================================================================
+CHALLENGE 1 - CONCURRENCY CONTROL
+command : python scripts/challenge1_concurrency.py --strategy both
+run at  : 2026-10-21 17:14:40 IST (UTC+0530)   |   UTC 2026-10-21 11:44:40
+git     : ccbc7d7
+====================================================================================================
+
+--- strategy=naive: 20 parallel bookings of 1 seat(s) against a quota of 5 on 12627 / 2047-04-29 / SL 
+  req | http | outcome   | booking  | pnr        | latency_ms | finished_at_ms
+  ----+------+-----------+----------+------------+------------+---------------
+  3   | 201  | CONFIRMED | 83cf107d | 5549487043 | 385        | 400           
+  8   | 201  | CONFIRMED | 49ad9ce2 | 6041110821 | 389        | 403           
+  9   | 201  | CONFIRMED | 09a18488 | 2453896332 | 406        | 420           
+  10  | 201  | CONFIRMED | a64ee300 | 6808785792 | 433        | 447           
+  16  | 201  | CONFIRMED | 5ff4079b | 7667097504 | 446        | 461           
+  12  | 201  | CONFIRMED | 0dd3fb9b | 5126625750 | 465        | 480           
+  4   | 201  | CONFIRMED | bd5db39f | 5094054249 | 475        | 490           
+  20  | 201  | CONFIRMED | 1d31c899 | 4251049321 | 483        | 497           
+  14  | 201  | CONFIRMED | 91d5d644 | 7284244440 | 485        | 499           
+  19  | 201  | CONFIRMED | 5de51e6e | 2560656486 | 487        | 503           
+  17  | 201  | CONFIRMED | 6a9dcd9c | 5888351394 | 491        | 506           
+  11  | 201  | CONFIRMED | 8eb8f0e8 | 3886370983 | 501        | 515           
+  7   | 201  | CONFIRMED | ebcccfba | 1374125432 | 510        | 524           
+  5   | 201  | CONFIRMED | 1b460021 | 2513851476 | 511        | 526           
+  6   | 201  | CONFIRMED | 5db081bb | 2997409019 | 513        | 528           
+  2   | 201  | CONFIRMED | 2c0280e8 | 3291998421 | 517        | 531           
+  13  | 201  | CONFIRMED | 4c1cce9e | 5526968747 | 517        | 532           
+  1   | 201  | CONFIRMED | 6ac7443e | 6737035694 | 519        | 533           
+  15  | 201  | CONFIRMED | 1c334972 | 9039619258 | 521        | 535           
+  18  | 201  | CONFIRMED | e65253df | 8260187989 | 523        | 538           
+
+  accepted (201 CONFIRMED): 20   rejected (409 SEATS_UNAVAILABLE): 0   other: 0
+
+Seat quota after the run   [inventory-service DB]
+  SELECT train_no, journey_date, travel_class, total_seats, available_seats, version FROM seat_inventory WHERE train_no = %(t)s AND journey_date = %(d)s AND travel_class = %(c)s
+  train_no | journey_date | travel_class | total_seats | available_seats | version
+  ---------+--------------+--------------+-------------+-----------------+--------
+  12627    | 2047-04-29   | SL           | 5           | 4               | 20     
+
+Seat holds by status   [inventory-service DB]
+  SELECT h.status, count(*) AS holds, sum(h.seat_count) AS seats FROM seat_holds h JOIN seat_inventory i USING (inventory_id) WHERE i.train_no = %(t)s AND i.journey_date = %(d)s AND i.travel_class = %(c)s GROUP BY h.status ORDER BY h.status
+  status    | holds | seats
+  ----------+-------+------
+  CONFIRMED | 20    | 20   
+
+Bookings by status   [booking-service DB]
+  SELECT status, failure_reason, count(*) AS bookings FROM bookings WHERE train_no = %(t)s AND journey_date = %(d)s GROUP BY status, failure_reason ORDER BY status
+  status    | failure_reason | bookings
+  ----------+----------------+---------
+  CONFIRMED | -              | 20      
+
+Payments for these bookings   [payment-service DB]
+  SELECT status, count(*) AS payments, sum(amount_paise) AS amount_paise FROM payments WHERE booking_id = ANY(%(ids)s) GROUP BY status
+  status   | payments | amount_paise
+  ---------+----------+-------------
+  CAPTURED | 20       | 2210000     
+
+  checks
+   [FAIL] exactly 5 request(s) accepted (got 20)
+   [FAIL] seats taken by holds (20) <= total seats (5)
+   [FAIL] available (4) + taken (20) == total (5)
+   [PASS] confirmed bookings (20) == captured payments (20)
+
+--- strategy=atomic: 20 parallel bookings of 1 seat(s) against a quota of 5 on 12627 / 2052-11-16 / SL 
+  req | http | outcome           | booking  | pnr        | latency_ms | finished_at_ms
+  ----+------+-------------------+----------+------------+------------+---------------
+  17  | 409  | SEATS_UNAVAILABLE | 2e9f5737 | -          | 110        | 127           
+  20  | 409  | SEATS_UNAVAILABLE | 053cc7b0 | -          | 110        | 127           
+  12  | 409  | SEATS_UNAVAILABLE | 4fc2cdf6 | -          | 109        | 128           
+  6   | 409  | SEATS_UNAVAILABLE | e655282c | -          | 112        | 129           
+  19  | 409  | SEATS_UNAVAILABLE | 0f20ef9f | -          | 112        | 130           
+  9   | 409  | SEATS_UNAVAILABLE | 26c94d2b | -          | 113        | 131           
+  3   | 409  | SEATS_UNAVAILABLE | 69d0a6ad | -          | 124        | 140           
+  1   | 409  | SEATS_UNAVAILABLE | 5ce40c74 | -          | 125        | 142           
+  18  | 409  | SEATS_UNAVAILABLE | de74485f | -          | 125        | 142           
+  5   | 409  | SEATS_UNAVAILABLE | ab0853f9 | -          | 125        | 143           
+  2   | 409  | SEATS_UNAVAILABLE | cc0be1be | -          | 130        | 146           
+  14  | 409  | SEATS_UNAVAILABLE | 9fb9d6da | -          | 128        | 146           
+  10  | 409  | SEATS_UNAVAILABLE | a1ca7bda | -          | 130        | 147           
+  16  | 409  | SEATS_UNAVAILABLE | 18031a7f | -          | 131        | 149           
+  8   | 409  | SEATS_UNAVAILABLE | 54ae6ac1 | -          | 132        | 150           
+  11  | 201  | CONFIRMED         | 430930a4 | 2844749011 | 227        | 244           
+  13  | 201  | CONFIRMED         | 8de80b21 | 8127286583 | 232        | 249           
+  7   | 201  | CONFIRMED         | 1746ce99 | 6088177760 | 232        | 250           
+  4   | 201  | CONFIRMED         | d6dcc057 | 9775084085 | 236        | 252           
+  15  | 201  | CONFIRMED         | 41635ec5 | 5615409129 | 234        | 252           
+
+  accepted (201 CONFIRMED): 5   rejected (409 SEATS_UNAVAILABLE): 15   other: 0
+
+Seat quota after the run   [inventory-service DB]
+  SELECT train_no, journey_date, travel_class, total_seats, available_seats, version FROM seat_inventory WHERE train_no = %(t)s AND journey_date = %(d)s AND travel_class = %(c)s
+  train_no | journey_date | travel_class | total_seats | available_seats | version
+  ---------+--------------+--------------+-------------+-----------------+--------
+  12627    | 2052-11-16   | SL           | 5           | 0               | 5      
+
+Seat holds by status   [inventory-service DB]
+  SELECT h.status, count(*) AS holds, sum(h.seat_count) AS seats FROM seat_holds h JOIN seat_inventory i USING (inventory_id) WHERE i.train_no = %(t)s AND i.journey_date = %(d)s AND i.travel_class = %(c)s GROUP BY h.status ORDER BY h.status
+  status    | holds | seats
+  ----------+-------+------
+  CONFIRMED | 5     | 5    
+
+Bookings by status   [booking-service DB]
+  SELECT status, failure_reason, count(*) AS bookings FROM bookings WHERE train_no = %(t)s AND journey_date = %(d)s GROUP BY status, failure_reason ORDER BY status
+  status    | failure_reason    | bookings
+  ----------+-------------------+---------
+  CONFIRMED | -                 | 5       
+  FAILED    | SEATS_UNAVAILABLE | 15      
+
+Payments for these bookings   [payment-service DB]
+  SELECT status, count(*) AS payments, sum(amount_paise) AS amount_paise FROM payments WHERE booking_id = ANY(%(ids)s) GROUP BY status
+  status   | payments | amount_paise
+  ---------+----------+-------------
+  CAPTURED | 5        | 552500      
+
+  checks
+   [PASS] exactly 5 request(s) accepted (got 5)
+   [PASS] seats taken by holds (5) <= total seats (5)
+   [PASS] available (0) + taken (5) == total (5)
+   [PASS] confirmed bookings (5) == captured payments (5)
+
+--- result -----------------------------------------------------------------------------------------
+  naive  (check-then-update): OVERSOLD, counter and holds do not match
+  atomic (conditional UPDATE): PASS - never over-allocated
+
+why check-then-update in the application is not enough
+  A: SELECT available_seats -> 5          B: SELECT available_seats -> 5
+  A: 5 >= 1, UPDATE ... SET 4             B: 5 >= 1, UPDATE ... SET 4   (A's decrement is lost)
+  every request that reads before another one writes thinks a seat is free, so we oversell
+  and the counter stops matching the holds. CHECK (available_seats >= 0) does not catch it
+  because the counter never goes negative, it is just wrong.
+
+what inventory-service does (app/repository/inventory_repo.py)
+  UPDATE seat_inventory SET available_seats = available_seats - :n
+   WHERE inventory_id = :id AND available_seats >= :n RETURNING available_seats
+  check and write in one statement. postgres locks the row, a parallel UPDATE waits and then
+  re-checks the WHERE against the committed value, so once the seats are gone it updates
+  0 rows and we answer 409. the hold row is inserted in the same transaction.
+
+[122 raw log lines saved to evidence/challenge-1-concurrency/inventory_logs_20261021-171440.jsonl]

@@ -1,10 +1,10 @@
-# Challenge 1 - Concurrency control
+# Challenge 1 - concurrency (no overselling)
 
-**Claim.** When many people try to book the last Tatkal seats at the same moment, the quota is never
-over-allocated: with a capacity of N, exactly N bookings succeed, every other request is rejected with
-`409 SEATS_UNAVAILABLE`, and the seat counter, the hold rows, the bookings and the payments all agree.
+**Claim:** when 20 people book the last 5 Tatkal seats at the same moment, 5 get a ticket and the other
+15 get `409 SEATS_UNAVAILABLE`. Afterwards the seat counter, the holds, the bookings and the payments all
+agree.
 
-**Mechanism.** inventory-service takes seats with one atomic conditional update
+inventory-service takes seats with one conditional UPDATE
 ([`inventory_repo.py`](../../services/inventory-service/app/repository/inventory_repo.py)):
 
 ```sql
@@ -13,62 +13,61 @@ UPDATE seat_inventory SET available_seats = available_seats - :n, version = vers
 RETURNING available_seats
 ```
 
-The hold row is inserted in the same transaction, just before the decrement: `UNIQUE (booking_id)` on
-`seat_holds` makes a retried hold for the same booking wait for the first one and return it, instead of
-taking seats twice. `CHECK (available_seats >= 0)` is a second line of defence.
+The hold row goes into the same transaction. `UNIQUE (booking_id)` on `seat_holds` means a retried hold
+for the same booking gets the existing hold instead of more seats. `CHECK (available_seats >= 0)` is only
+a backup.
 
 ## Files
 
-| File | What it proves |
+| File | What it shows |
 |---|---|
-| [`run_both_20261021-135013.txt`](run_both_20261021-135013.txt) | Output of `python scripts/challenge1_concurrency.py --strategy both`. Two runs against fresh quotas of 5 seats, 20 requests each, released together by a barrier, going through the real booking API (hold, pay, confirm). |
-| &nbsp;&nbsp;section `strategy=naive` | The **failure case we prevent**. With the check-then-update version (dev switch `HOLD_STRATEGY=naive`), all 20 of 20 requests were confirmed for 5 seats, 20 customers were charged (Rs 22,100 for seats worth Rs 5,525), and the counter ends at 4 while 20 holds exist: a lost update. |
-| &nbsp;&nbsp;section `strategy=atomic` | The real code. 5 x `201 CONFIRMED`, 15 x `409 SEATS_UNAVAILABLE`. Final DB state: `available_seats = 0`, 5 CONFIRMED holds, 5 CONFIRMED + 15 FAILED bookings, 5 CAPTURED payments. All four checks PASS. |
-| [`inventory_logs_20261021-135013.jsonl`](inventory_logs_20261021-135013.jsonl) | Raw inventory-service log lines for both runs: every `seats held` line with `seats_left`, and every `POST /api/v1/holds -> 409`. |
+| [`run_both_20261021-171440.txt`](run_both_20261021-171440.txt) | output of `python scripts/challenge1_concurrency.py --strategy both`: two runs of 20 parallel bookings (released together by a barrier) against new 5-seat quotas, through the real booking API |
+| &nbsp;&nbsp;section `strategy=naive` | what happens without an atomic update (dev switch `HOLD_STRATEGY=naive`): all 20 confirmed for 5 seats, Rs 22,100 charged for Rs 5,525 worth of seats, counter left at 4 next to 20 holds. Three checks FAIL |
+| &nbsp;&nbsp;section `strategy=atomic` | the real code: 5 x `201 CONFIRMED`, 15 x `409 SEATS_UNAVAILABLE`. Database afterwards: `available_seats = 0`, 5 CONFIRMED holds, 5 CONFIRMED and 15 FAILED bookings, 5 CAPTURED payments. All four checks PASS |
+| [`inventory_logs_20261021-171440.jsonl`](inventory_logs_20261021-171440.jsonl) | raw inventory-service log lines of both runs: every `seats held` line with `seats_left`, and every 409 |
+| [`screenshots/challenge1_naive_then_atomic.png`](screenshots/challenge1_naive_then_atomic.png) | the terminal for the same run, with the command and the time |
 
-The final database state is printed in the output by querying each service's own database with that
-service's credentials (inventory: quota and holds; booking: bookings; payment: payments). The payment
-query uses the booking ids read from booking-service - there is no cross-database join.
+The database state in the output is read from each service's own database with that service's own
+credentials. Payments are matched to bookings by id in Python, there is no cross-database join.
 
-## Why a plain check-then-update in application code fails
+## Why check-then-update in the code fails
 
 ```
 available = SELECT available_seats ...     -- request A reads 5, request B reads 5
 if available >= 1:                         -- both pass
-    UPDATE ... SET available_seats = 4     -- both write 4: one decrement is lost
+    UPDATE ... SET available_seats = 4     -- both write 4, one decrement is lost
 ```
 
-The read and the write are separate steps, so any number of requests can read the same value in between
-and each "sees" a free seat. Under READ COMMITTED PostgreSQL does not stop this - the second UPDATE simply
-overwrites the first. More holds are created than seats exist, and the counter stops matching the holds.
-The CHECK constraint does not help either because the counter never goes negative; it is just wrong.
-The naive run above shows exactly this.
+Reading and writing are separate steps, so many requests can read the same value in between, and each
+one thinks a seat is free. Under READ COMMITTED PostgreSQL does not stop this, the second UPDATE just
+overwrites the first. We get more holds than seats and a counter that no longer matches them. The CHECK
+constraint does not notice because the counter never goes negative. The naive run above shows it.
 
-With the conditional UPDATE, the check and the write are one statement. The first transaction locks the
-row; the others wait, and when they get the lock PostgreSQL re-evaluates `available_seats >= :n` against
-the committed value, so once the seats are gone the UPDATE matches no row and we return 409.
+With the conditional UPDATE the check and the write are one statement. The first transaction locks the
+row. The others wait, and when they get the lock PostgreSQL re-checks `available_seats >= :n` against the
+committed value, so once the seats are gone the UPDATE matches no row and we return 409.
 
-## Alternatives we considered
+## Other options we looked at
 
-- `SELECT ... FOR UPDATE` then update: also correct, but holds the lock across a round trip from Python.
-- Optimistic locking with the `version` column (`WHERE version = :seen`): correct, but under a Tatkal
-  rush most requests would fail the version check and have to retry, even when seats are still free.
-- One row per seat with `UNIQUE` / `SKIP LOCKED`: needed if passengers pick seat numbers; we only sell
-  counts per class, so a counter is simpler.
+- `SELECT ... FOR UPDATE`, then update: also correct, but the lock is held during a round trip to Python.
+- Optimistic locking on `version`: correct too, but in a Tatkal rush most requests would fail the version
+  check and retry even while seats are left.
+- One row per seat with `SKIP LOCKED`: the right model if passengers pick seats. We sell counts, so a
+  counter is simpler.
 
-## Limitations
+## Limits
 
-The quota row is a single hot row - every booking for one train/date/class serialises on it. For a few
-hundred concurrent requests that is fine (each lock is held for a few milliseconds); at much larger scale
-the quota would have to be split into buckets or moved into an in-memory counter in front of the database.
+Every booking for one train/date/class queues on the same row lock (a few milliseconds each). That is
+fine for hundreds of requests at once. At real Tatkal scale we would split the quota into buckets or put
+a waiting room in front.
 
-## Reproduce
+## Re-run
 
 ```bash
 python scripts/challenge1_concurrency.py --strategy both            # naive, then atomic
-python scripts/challenge1_concurrency.py --capacity 1 --requests 30  # last seat
+python scripts/challenge1_concurrency.py --capacity 1 --requests 30  # the last seat
 python scripts/challenge1_concurrency.py --seats 2                   # 2 seats per booking
 ```
 
-Also covered by an integration test without HTTP:
+The same race also runs as an integration test, without HTTP:
 [`test_br1_concurrent_holds.py`](../../services/inventory-service/tests/integration/test_br1_concurrent_holds.py).

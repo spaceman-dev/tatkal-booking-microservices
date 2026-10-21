@@ -1,0 +1,120 @@
+====================================================================================================
+CHALLENGE 2 - IDEMPOTENCY
+command : python scripts/challenge2_idempotency.py
+run at  : 2026-10-21 17:15:23 IST (UTC+0530)   |   UTC 2026-10-21 11:45:23
+git     : ccbc7d7
+====================================================================================================
+
+--- A. same key, same body, three times in a row   Idempotency-Key: c2-seq-8ac87426-c46d-47f9-8237-2d1352b58963 
+  attempt | http | outcome   | booking  | pnr        | Idempotent-Replayed | correlation_id | sha256(body)    
+  --------+------+-----------+----------+------------+---------------------+----------------+-----------------
+  1       | 201  | CONFIRMED | 140fd020 | 3837167998 | -                   | c63117492b41   | 20356e86098960f3
+  2       | 201  | CONFIRMED | 140fd020 | 3837167998 | true                | 9d12f299e7a4   | 20356e86098960f3
+  3       | 201  | CONFIRMED | 140fd020 | 3837167998 | true                | cf87e107e3cf   | 20356e86098960f3
+
+--- B. a FAILED request is replayed too (declined payment)   Idempotency-Key: c2-fail-3cee2c08-2f36-4246-a342-27f6ce60fdae 
+  attempt | http | outcome          | booking  | pnr | Idempotent-Replayed | correlation_id | sha256(body)    
+  --------+------+------------------+----------+-----+---------------------+----------------+-----------------
+  1       | 402  | PAYMENT_DECLINED | 4070fdbd | -   | -                   | 93e6f7803047   | e4fdf5fc6370b04e
+  2       | 402  | PAYMENT_DECLINED | 4070fdbd | -   | true                | 4c55ecb02d37   | e4fdf5fc6370b04e
+  bank gateway charge requests: before=26 after 1st=27 after 2nd=27
+
+--- C. same key as A but a different body (one passenger instead of two) ---------------------------
+  HTTP 422  {"type":"https://tatkal.example/problems/idempotency-key-reused","title":"Idempotency-Key was used for a different request","status":422,"detail":"This key belongs to a request with a different body. Use a new key for a new request.","instance":"/api/v1/bookings","code":"IDEMPOTENCY_KEY_REUSED","correlation_id":"a146f34ae25d4616a696d7b2ee1fe7c5"}
+
+--- D. 10 identical requests released at the same instant   Idempotency-Key: c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 
+  thread | http | outcome   | booking  | pnr        | Idempotent-Replayed | correlation_id | sha256(body)     | latency_ms
+  -------+------+-----------+----------+------------+---------------------+----------------+------------------+-----------
+  1      | 201  | CONFIRMED | 348b2dce | 2785247597 | -                   | f5213aa477f6   | a28fa4c10700fb6f | 198       
+  5      | 201  | CONFIRMED | 348b2dce | 2785247597 | true                | 12311783632b   | a28fa4c10700fb6f | 255       
+  7      | 201  | CONFIRMED | 348b2dce | 2785247597 | true                | cca40a4c0640   | a28fa4c10700fb6f | 255       
+  8      | 201  | CONFIRMED | 348b2dce | 2785247597 | true                | 530089a253bd   | a28fa4c10700fb6f | 257       
+  2      | 201  | CONFIRMED | 348b2dce | 2785247597 | true                | 16ea91c96ed6   | a28fa4c10700fb6f | 259       
+  4      | 201  | CONFIRMED | 348b2dce | 2785247597 | true                | 78e196a8e09e   | a28fa4c10700fb6f | 259       
+  3      | 201  | CONFIRMED | 348b2dce | 2785247597 | true                | 78f607355fcc   | a28fa4c10700fb6f | 260       
+  6      | 201  | CONFIRMED | 348b2dce | 2785247597 | true                | 4b5b1eb6d020   | a28fa4c10700fb6f | 260       
+  9      | 201  | CONFIRMED | 348b2dce | 2785247597 | true                | 158cb0c054e2   | a28fa4c10700fb6f | 260       
+  10     | 201  | CONFIRMED | 348b2dce | 2785247597 | true                | 9b6902886e64   | a28fa4c10700fb6f | 260       
+  distinct bookings: 1   original responses: 1   replays: 9
+
+--- E. no Idempotency-Key header -------------------------------------------------------------------
+  HTTP 400  {"type":"https://tatkal.example/problems/idempotency-key-required","title":"Idempotency-Key header required","status":400,"detail":"This operation is not safe to repeat, so it needs a unique Idempotency-Key header.","instance":"/api/v1/bookings","code":"IDEMPOTENCY_KEY_REQUIRED","correlation_id":"f9e6e0d8015a45a6b4cd39e9dbd045da"}
+
+--- F. payment-service on its own: same key twice, then a new key for the same booking (BR4) -------
+  same key, 1st          HTTP 201  payment=47354d82  status=CAPTURED  replayed=-  rule=-
+  same key, 2nd          HTTP 201  payment=47354d82  status=CAPTURED  replayed=true  rule=-
+  NEW key, same booking  HTTP 409  payment=47354d82  status=PAYMENT_ALREADY_EXISTS  replayed=-  rule=BR4
+
+--- database state ---------------------------------------------------------------------------------
+
+Bookings created for the three keys (one row per key)   [booking-service DB]
+  SELECT idempotency_key, booking_id, status, pnr, failure_reason FROM bookings WHERE idempotency_key = ANY(%(k)s) ORDER BY created_at
+  idempotency_key                              | booking_id                           | status    | pnr        | failure_reason  
+  ---------------------------------------------+--------------------------------------+-----------+------------+-----------------
+  c2-seq-8ac87426-c46d-47f9-8237-2d1352b58963  | 140fd020-6329-4494-b5db-ae6a741349c1 | CONFIRMED | 3837167998 | -               
+  c2-fail-3cee2c08-2f36-4246-a342-27f6ce60fdae | 4070fdbd-468c-4aa9-a687-f7bb0e696f42 | FAILED    | -          | PAYMENT_DECLINED
+  c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6  | 348b2dce-30fd-49db-be6a-d7ae8a02a734 | CONFIRMED | 2785247597 | -               
+
+Stored idempotency records (key, fingerprint, stored response)   [booking-service DB]
+  SELECT idem_key, status, response_code, left(request_hash, 16) AS request_hash, resource_id, left(response_body, 60) AS response_body_start FROM idempotency_keys WHERE idem_key = ANY(%(k)s) ORDER BY created_at
+  idem_key                                     | status    | response_code | request_hash     | resource_id                          | response_body_start                                         
+  ---------------------------------------------+-----------+---------------+------------------+--------------------------------------+-------------------------------------------------------------
+  c2-seq-8ac87426-c46d-47f9-8237-2d1352b58963  | COMPLETED | 201           | 7b82c69b059d2ade | 140fd020-6329-4494-b5db-ae6a741349c1 | {"booking_id":"140fd020-6329-4494-b5db-ae6a741349c1","pnr":"
+  c2-fail-3cee2c08-2f36-4246-a342-27f6ce60fdae | COMPLETED | 402           | fe747d16e03810f1 | 4070fdbd-468c-4aa9-a687-f7bb0e696f42 | {"type":"https://tatkal.example/problems/payment-declined","
+  c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6  | COMPLETED | 201           | 9220ccff8ebe285d | 348b2dce-30fd-49db-be6a-d7ae8a02a734 | {"booking_id":"348b2dce-30fd-49db-be6a-d7ae8a02a734","pnr":"
+
+Payments for those bookings (no duplicate charge)   [payment-service DB]
+  SELECT booking_id, payment_id, status, amount_paise, gateway_attempts FROM payments WHERE booking_id = ANY(%(b)s) ORDER BY created_at
+  booking_id                           | payment_id                           | status   | amount_paise | gateway_attempts
+  -------------------------------------+--------------------------------------+----------+--------------+-----------------
+  140fd020-6329-4494-b5db-ae6a741349c1 | 261a055e-b173-48f0-9ef1-9764a8a29afe | CAPTURED | 579000       | 1               
+  4070fdbd-468c-4aa9-a687-f7bb0e696f42 | f77fb569-4339-4c22-90f0-55390ed45e88 | DECLINED | 289500       | 1               
+  348b2dce-30fd-49db-be6a-d7ae8a02a734 | bd5ae163-da22-4427-9ba7-0da9ebbb8b01 | CAPTURED | 289500       | 1               
+
+Captures recorded by the bank gateway per booking   [mock-bank-gateway /stats]
+  booking_id                           | captures
+  -------------------------------------+---------
+  140fd020-6329-4494-b5db-ae6a741349c1 | 1       
+  4070fdbd-468c-4aa9-a687-f7bb0e696f42 | 0       
+  348b2dce-30fd-49db-be6a-d7ae8a02a734 | 1       
+
+--- log lines showing the replays (logs/booking-service.log) ---------------------------------------
+  11:45:24.196 INFO    booking-service      cid=9d12f299e7a4476f replaying stored response for idempotency key  idempotency_key=c2-seq-8ac87426-c46d-47f9-8237-2d1352b58963 stored_status=201 resource_id=140fd020-6329-4494-b5db-ae6a741349c1
+  11:45:24.516 INFO    booking-service      cid=cf87e107e3cf4a79 replaying stored response for idempotency key  idempotency_key=c2-seq-8ac87426-c46d-47f9-8237-2d1352b58963 stored_status=201 resource_id=140fd020-6329-4494-b5db-ae6a741349c1
+  11:45:25.059 INFO    booking-service      cid=4c55ecb02d3742af replaying stored response for idempotency key  idempotency_key=c2-fail-3cee2c08-2f36-4246-a342-27f6ce60fdae stored_status=402 resource_id=4070fdbd-468c-4aa9-a687-f7bb0e696f42
+  11:45:25.070 WARNING booking-service      cid=a146f34ae25d4616 idempotency key reused with a different payload  idempotency_key=c2-seq-8ac87426-c46d-47f9-8237-2d1352b58963
+  11:45:25.102 INFO    booking-service      cid=cca40a4c064046d6 same idempotency key is being processed, waiting for its result  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6
+  11:45:25.102 INFO    booking-service      cid=12311783632b403e same idempotency key is being processed, waiting for its result  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6
+  11:45:25.102 INFO    booking-service      cid=78f607355fcc4071 same idempotency key is being processed, waiting for its result  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6
+  11:45:25.102 INFO    booking-service      cid=158cb0c054e24b19 same idempotency key is being processed, waiting for its result  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6
+  11:45:25.102 INFO    booking-service      cid=9b6902886e644f03 same idempotency key is being processed, waiting for its result  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6
+  11:45:25.102 INFO    booking-service      cid=4b5b1eb6d0204dc2 same idempotency key is being processed, waiting for its result  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6
+  11:45:25.103 INFO    booking-service      cid=530089a253bd4ab1 same idempotency key is being processed, waiting for its result  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6
+  11:45:25.103 INFO    booking-service      cid=78e196a8e09e4170 same idempotency key is being processed, waiting for its result  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6
+  11:45:25.103 INFO    booking-service      cid=16ea91c96ed64843 same idempotency key is being processed, waiting for its result  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6
+  11:45:25.333 INFO    booking-service      cid=cca40a4c064046d6 replaying stored response for idempotency key  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 stored_status=201 resource_id=348b2dce-30fd-49db-be6a-d7ae8a02a734
+  11:45:25.333 INFO    booking-service      cid=12311783632b403e replaying stored response for idempotency key  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 stored_status=201 resource_id=348b2dce-30fd-49db-be6a-d7ae8a02a734
+  11:45:25.334 INFO    booking-service      cid=530089a253bd4ab1 replaying stored response for idempotency key  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 stored_status=201 resource_id=348b2dce-30fd-49db-be6a-d7ae8a02a734
+  11:45:25.336 INFO    booking-service      cid=78e196a8e09e4170 replaying stored response for idempotency key  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 stored_status=201 resource_id=348b2dce-30fd-49db-be6a-d7ae8a02a734
+  11:45:25.336 INFO    booking-service      cid=16ea91c96ed64843 replaying stored response for idempotency key  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 stored_status=201 resource_id=348b2dce-30fd-49db-be6a-d7ae8a02a734
+  11:45:25.337 INFO    booking-service      cid=158cb0c054e24b19 replaying stored response for idempotency key  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 stored_status=201 resource_id=348b2dce-30fd-49db-be6a-d7ae8a02a734
+  11:45:25.337 INFO    booking-service      cid=78f607355fcc4071 replaying stored response for idempotency key  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 stored_status=201 resource_id=348b2dce-30fd-49db-be6a-d7ae8a02a734
+  11:45:25.338 INFO    booking-service      cid=4b5b1eb6d0204dc2 replaying stored response for idempotency key  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 stored_status=201 resource_id=348b2dce-30fd-49db-be6a-d7ae8a02a734
+  11:45:25.338 INFO    booking-service      cid=9b6902886e644f03 replaying stored response for idempotency key  idempotency_key=c2-par-f5af776e-fe5b-4d07-b73a-51f5f0e0eed6 stored_status=201 resource_id=348b2dce-30fd-49db-be6a-d7ae8a02a734
+[22 raw log lines saved to evidence/challenge-2-idempotency/replay_logs_20261021-171523.jsonl]
+
+--- result -----------------------------------------------------------------------------------------
+  [PASS] A: all three responses byte-identical
+  [PASS] A: 2nd and 3rd marked Idempotent-Replayed
+  [PASS] B: declined result replayed (402 twice, same body)
+  [PASS] B: the bank was not asked again on the repeat
+  [PASS] C: key reuse with a different body rejected with 422
+  [PASS] D: one booking for 10 simultaneous requests
+  [PASS] D: one original, nine replays
+  [PASS] D: all ten bodies identical
+  [PASS] E: missing key rejected with 400
+  [PASS] F: same key -> same payment
+  [PASS] F: new key for same booking refused (409, BR4)
+  [PASS] DB: one booking per key
+  [PASS] DB: at most one payment per booking
+  [PASS] gateway: at most one capture per booking

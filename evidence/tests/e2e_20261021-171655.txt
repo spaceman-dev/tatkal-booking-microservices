@@ -1,7 +1,3 @@
-command : python -m pytest tests/e2e -v   (tooling venv, whole stack running)
-run at  : 2026-10-21 14:05:30 IST (UTC+0530)
-git     : ddaa5fb
-
 ============================= test session starts ==============================
 platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.7.0 -- /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/.venv/bin/python
 cachedir: .pytest_cache
@@ -18,4 +14,4 @@ tests/e2e/test_main_flow.py::test_cancelling_a_tatkal_ticket_returns_seats_witho
 tests/e2e/test_main_flow.py::test_business_rule_violations_are_rejected_up_front[passengers0-BR2] PASSED [ 85%]
 tests/e2e/test_main_flow.py::test_business_rule_violations_are_rejected_up_front[passengers1-BR2] PASSED [100%]
 
-============================== 7 passed in 5.34s ===============================
+============================== 7 passed in 6.19s ===============================

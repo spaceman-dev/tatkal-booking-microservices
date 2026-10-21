@@ -1,0 +1,215 @@
+====================================================================================================
+CHALLENGE 3C - SAGA WITH COMPENSATION
+command : python scripts/challenge3_saga.py
+run at  : 2026-10-21 17:15:41 IST (UTC+0530)   |   UTC 2026-10-21 11:45:41
+git     : ccbc7d7
+====================================================================================================
+quota opened: train 22691, 2087-08-13, class 2A, 4 seats
+
+--- 1. happy path ----------------------------------------------------------------------------------
+  HTTP 201  status=CONFIRMED  pnr=3425234448  booking=a3de959e-6f40-4df6-a2c9-7c243d8a1842  amount=Rs 4,900.00
+
+  saga log  (GET /api/v1/bookings/a3de959e-6f40-4df6-a2c9-7c243d8a1842/saga)
+  # | step           | action  | outcome | detail                                                            
+  --+----------------+---------+---------+-------------------------------------------------------------------
+  1 | HOLD_SEATS     | EXECUTE | OK      | hold 9283b077-7603-40fd-b85b-3fd3b91bddd8: 1 seat(s), Rs 4,900.00 
+  2 | CHARGE_PAYMENT | EXECUTE | OK      | payment f651ebd3-0adc-41fc-b58d-3380afbb8955 captured, Rs 4,900.00
+  3 | CONFIRM_SEATS  | EXECUTE | OK      | seats confirmed, PNR 3425234448                                   
+
+  quota now: total=4 available=3 held=0 confirmed=1
+
+--- 2. failure forced at step 3 (CONFIRM_SEATS) ----------------------------------------------------
+  arming fault: the next 2 confirm calls fail with HTTP 500 (booking-service retries once)
+  X-Correlation-ID: c3-step3-057ad3a87a7f
+  HTTP 502  code=SEAT_CONFIRMATION_FAILED  booking_status=FAILED
+  detail: The seats could not be confirmed. Your payment was refunded in full and the seats released.
+
+  saga log  (GET /api/v1/bookings/31c96a49-a011-4a8d-a8c3-67f75eae10ac/saga)
+  # | step           | action     | outcome | detail                                                                
+  --+----------------+------------+---------+-----------------------------------------------------------------------
+  1 | HOLD_SEATS     | EXECUTE    | OK      | hold 8e9599c4-0b39-4864-a619-3f5b86f7ad41: 2 seat(s), Rs 9,800.00     
+  2 | CHARGE_PAYMENT | EXECUTE    | OK      | payment edc4ad7a-dcfe-45eb-913f-a715d905597e captured, Rs 9,800.00    
+  3 | CONFIRM_SEATS  | EXECUTE    | FAILED  | inventory-service failed: inventory-service returned 500 INJECTED_FAUL
+  4 | REFUND_PAYMENT | COMPENSATE | OK      | refunded Rs 9,800.00 on payment edc4ad7a-dcfe-45eb-913f-a715d905597e  
+  5 | RELEASE_SEATS  | COMPENSATE | OK      | released 2 seat(s) of hold 8e9599c4-0b39-4864-a619-3f5b86f7ad41       
+
+booking   [booking-service DB]
+  SELECT status, failure_reason, amount_paise, refund_paise, pnr FROM bookings WHERE booking_id = %(b)s
+  status | failure_reason           | amount_paise | refund_paise | pnr
+  -------+--------------------------+--------------+--------------+----
+  FAILED | SEAT_CONFIRMATION_FAILED | 980000       | 980000       | -  
+
+seat hold   [inventory-service DB]
+  SELECT status, seat_count, release_reason FROM seat_holds WHERE booking_id = %(b)s
+  status   | seat_count | release_reason          
+  ---------+------------+-------------------------
+  RELEASED | 2          | SEAT_CONFIRMATION_FAILED
+
+payment and refund   [payment-service DB]
+  SELECT p.status AS payment, p.amount_paise, p.failure_reason, r.status AS refund, r.amount_paise AS refund_paise FROM payments p LEFT JOIN refunds r USING (payment_id) WHERE p.booking_id = %(b)s
+  payment  | amount_paise | failure_reason | refund    | refund_paise
+  ---------+--------------+----------------+-----------+-------------
+  REFUNDED | 980000       | -              | SUCCEEDED | 980000      
+
+  quota now: total=4 available=3 held=0 confirmed=1
+
+--- 3. failure at step 2 (bank declines the payment) -----------------------------------------------
+  HTTP 402  code=PAYMENT_DECLINED  booking_status=FAILED
+  detail: Declined: INSUFFICIENT_FUNDS. The seats were released.
+
+  saga log  (GET /api/v1/bookings/a671cfca-81f0-4f9a-9743-caa39cff93bf/saga)
+  # | step           | action     | outcome | detail                                                           
+  --+----------------+------------+---------+------------------------------------------------------------------
+  1 | HOLD_SEATS     | EXECUTE    | OK      | hold 97de2d73-5ccd-465a-b35b-251376330b96: 1 seat(s), Rs 4,900.00
+  2 | CHARGE_PAYMENT | EXECUTE    | FAILED  | 402 PAYMENT_DECLINED                                             
+  3 | RELEASE_SEATS  | COMPENSATE | OK      | released 1 seat(s) of hold 97de2d73-5ccd-465a-b35b-251376330b96  
+
+booking   [booking-service DB]
+  SELECT status, failure_reason, amount_paise, refund_paise, pnr FROM bookings WHERE booking_id = %(b)s
+  status | failure_reason   | amount_paise | refund_paise | pnr
+  -------+------------------+--------------+--------------+----
+  FAILED | PAYMENT_DECLINED | 490000       | -            | -  
+
+seat hold   [inventory-service DB]
+  SELECT status, seat_count, release_reason FROM seat_holds WHERE booking_id = %(b)s
+  status   | seat_count | release_reason  
+  ---------+------------+-----------------
+  RELEASED | 1          | PAYMENT_DECLINED
+
+payment and refund   [payment-service DB]
+  SELECT p.status AS payment, p.amount_paise, p.failure_reason, r.status AS refund, r.amount_paise AS refund_paise FROM payments p LEFT JOIN refunds r USING (payment_id) WHERE p.booking_id = %(b)s
+  payment  | amount_paise | failure_reason     | refund | refund_paise
+  ---------+--------------+--------------------+--------+-------------
+  DECLINED | 490000       | INSUFFICIENT_FUNDS | -      | -           
+
+  quota now: total=4 available=3 held=0 confirmed=1
+
+--- 4. step 3 fails while the bank's refund API is DOWN, so the refund cannot run yet --------------
+  bank: partial outage - charges work, refunds return 503;  inventory: next 2 confirms fail
+  HTTP 502  code=SEAT_CONFIRMATION_FAILED  booking_status=COMPENSATING
+  detail: The seats could not be confirmed. The refund will be completed automatically.
+
+  saga log  (GET /api/v1/bookings/82f9e8b3-9bc5-4c78-9b4e-0861294e9ad4/saga)
+  # | step           | action     | outcome | detail                                                                
+  --+----------------+------------+---------+-----------------------------------------------------------------------
+  1 | HOLD_SEATS     | EXECUTE    | OK      | hold 46c41c5d-826a-48eb-b92a-c9b64b1d1156: 1 seat(s), Rs 4,900.00     
+  2 | CHARGE_PAYMENT | EXECUTE    | OK      | payment ac67dec7-1be0-4ed5-a174-0ed7b7046bf2 captured, Rs 4,900.00    
+  3 | CONFIRM_SEATS  | EXECUTE    | FAILED  | inventory-service failed: inventory-service returned 500 INJECTED_FAUL
+  4 | REFUND_PAYMENT | COMPENSATE | FAILED  | payment-service failed: payment-service returned 503 REFUND_PENDING   
+  5 | RELEASE_SEATS  | COMPENSATE | OK      | released 1 seat(s) of hold 46c41c5d-826a-48eb-b92a-c9b64b1d1156       
+
+booking   [booking-service DB]
+  SELECT status, failure_reason, amount_paise, refund_paise, pnr FROM bookings WHERE booking_id = %(b)s
+  status       | failure_reason           | amount_paise | refund_paise | pnr
+  -------------+--------------------------+--------------+--------------+----
+  COMPENSATING | SEAT_CONFIRMATION_FAILED | 490000       | -            | -  
+
+seat hold   [inventory-service DB]
+  SELECT status, seat_count, release_reason FROM seat_holds WHERE booking_id = %(b)s
+  status   | seat_count | release_reason          
+  ---------+------------+-------------------------
+  RELEASED | 1          | SEAT_CONFIRMATION_FAILED
+
+payment and refund   [payment-service DB]
+  SELECT p.status AS payment, p.amount_paise, p.failure_reason, r.status AS refund, r.amount_paise AS refund_paise FROM payments p LEFT JOIN refunds r USING (payment_id) WHERE p.booking_id = %(b)s
+  payment  | amount_paise | failure_reason | refund  | refund_paise
+  ---------+--------------+----------------+---------+-------------
+  CAPTURED | 490000       | -              | PENDING | 490000      
+
+  quota now: total=4 available=3 held=0 confirmed=1
+
+  booking is COMPENSATING: the seats are already back in the quota, the refund is still owed
+
+  bank refunds are back; waiting for the recovery job (checks every 10 s, retries after 20 s) ...
+  booking reached FAILED after 24.4 s without anyone calling the API
+
+  saga log  (GET /api/v1/bookings/82f9e8b3-9bc5-4c78-9b4e-0861294e9ad4/saga)
+  # | step           | action     | outcome | detail                                                                
+  --+----------------+------------+---------+-----------------------------------------------------------------------
+  1 | HOLD_SEATS     | EXECUTE    | OK      | hold 46c41c5d-826a-48eb-b92a-c9b64b1d1156: 1 seat(s), Rs 4,900.00     
+  2 | CHARGE_PAYMENT | EXECUTE    | OK      | payment ac67dec7-1be0-4ed5-a174-0ed7b7046bf2 captured, Rs 4,900.00    
+  3 | CONFIRM_SEATS  | EXECUTE    | FAILED  | inventory-service failed: inventory-service returned 500 INJECTED_FAUL
+  4 | REFUND_PAYMENT | COMPENSATE | FAILED  | payment-service failed: payment-service returned 503 REFUND_PENDING   
+  5 | RELEASE_SEATS  | COMPENSATE | OK      | released 1 seat(s) of hold 46c41c5d-826a-48eb-b92a-c9b64b1d1156       
+  6 | REFUND_PAYMENT | COMPENSATE | OK      | refunded Rs 4,900.00 on payment ac67dec7-1be0-4ed5-a174-0ed7b7046bf2  
+
+booking   [booking-service DB]
+  SELECT status, failure_reason, amount_paise, refund_paise, pnr FROM bookings WHERE booking_id = %(b)s
+  status | failure_reason           | amount_paise | refund_paise | pnr
+  -------+--------------------------+--------------+--------------+----
+  FAILED | SEAT_CONFIRMATION_FAILED | 490000       | 490000       | -  
+
+seat hold   [inventory-service DB]
+  SELECT status, seat_count, release_reason FROM seat_holds WHERE booking_id = %(b)s
+  status   | seat_count | release_reason          
+  ---------+------------+-------------------------
+  RELEASED | 1          | SEAT_CONFIRMATION_FAILED
+
+payment and refund   [payment-service DB]
+  SELECT p.status AS payment, p.amount_paise, p.failure_reason, r.status AS refund, r.amount_paise AS refund_paise FROM payments p LEFT JOIN refunds r USING (payment_id) WHERE p.booking_id = %(b)s
+  payment  | amount_paise | failure_reason | refund    | refund_paise
+  ---------+--------------+----------------+-----------+-------------
+  REFUNDED | 490000       | -              | SUCCEEDED | 490000      
+
+--- consistency check for every booking of this run ------------------------------------------------
+  booking  | booking status | seat hold | payment  | amount      | refunded    | notified          | consistent
+  ---------+----------------+-----------+----------+-------------+-------------+-------------------+-----------
+  a3de959e | CONFIRMED      | CONFIRMED | CAPTURED | Rs 4,900.00 | -           | BOOKING_CONFIRMED | yes       
+  31c96a49 | FAILED         | RELEASED  | REFUNDED | Rs 9,800.00 | Rs 9,800.00 | BOOKING_FAILED    | yes       
+  a671cfca | FAILED         | RELEASED  | DECLINED | Rs 4,900.00 | -           | -                 | yes       
+  82f9e8b3 | FAILED         | RELEASED  | REFUNDED | Rs 4,900.00 | Rs 4,900.00 | BOOKING_FAILED    | yes       
+
+  quota now: total=4 available=3 held=0 confirmed=1
+
+--- scenario 2 traced through all service logs (correlation id c3-step3-057ad3a87a7f) --------------
+  11:45:41.914 INFO    booking-service      cid=c3-step3-057ad3a booking created  booking_id=31c96a49-a011-4a8d-a8c3-67f75eae10ac train_no=22691 journey_date=2087-08-13 seats=2
+  11:45:41.937 INFO    inventory-service    cid=c3-step3-057ad3a seats held  booking_id=31c96a49-a011-4a8d-a8c3-67f75eae10ac hold_id=8e9599c4-0b39-4864-a619-3f5b86f7ad41 seat_count=2 seats_left=1 strategy=atomic
+  11:45:41.951 INFO    inventory-service    cid=c3-step3-057ad3a POST /api/v1/holds -> 201  method=POST path=/api/v1/holds status=201 duration_ms=36.4
+  11:45:41.967 INFO    payment-service      cid=c3-step3-057ad3a charging payer  payment_id=edc4ad7a-dcfe-45eb-913f-a715d905597e booking_id=31c96a49-a011-4a8d-a8c3-67f75eae10ac amount_paise=980000 payer=as***@okmock
+  11:45:42.055 INFO    mock-bank-gateway    cid=c3-step3-057ad3a charge captured  charge_id=ch_dfbd2c4fdc9f41f7a6fc amount_paise=980000 merchant_reference=31c96a49-a011-4a8d-a8c3-67f75eae10ac
+  11:45:42.055 INFO    mock-bank-gateway    cid=c3-step3-057ad3a POST /gateway/v1/charges -> 200  method=POST path=/gateway/v1/charges status=200 duration_ms=81.7
+  11:45:42.073 INFO    payment-service      cid=c3-step3-057ad3a payment captured  payment_id=edc4ad7a-dcfe-45eb-913f-a715d905597e status=CAPTURED gateway_attempts=1
+  11:45:42.078 INFO    payment-service      cid=c3-step3-057ad3a POST /api/v1/payments -> 201  method=POST path=/api/v1/payments status=201 duration_ms=120.0
+  11:45:42.087 WARNING inventory-service    cid=c3-step3-057ad3a injected fault triggered  operation=confirm_hold status_code=500
+  11:45:42.087 WARNING inventory-service    cid=c3-step3-057ad3a request failed: INJECTED_FAULT  error_code=INJECTED_FAULT
+  11:45:42.088 WARNING booking-service      cid=c3-step3-057ad3a call to inventory-service failed, retrying  path=/api/v1/holds/8e9599c4-0b39-4864-a619-3f5b86f7ad41/confirm attempt=1 error=inventory-service returned 500 INJECTED_FAULT retry_in_ms=89
+  11:45:42.088 INFO    inventory-service    cid=c3-step3-057ad3a POST /api/v1/holds/8e9599c4-0b39-4864-a619-3f5b86f7ad41/confirm -> 500  method=POST path=/api/v1/holds/8e9599c4-0b39-4864-a619-3f5b86f7ad41/confirm status=500 duration_ms=1.4
+  11:45:42.183 WARNING inventory-service    cid=c3-step3-057ad3a injected fault triggered  operation=confirm_hold status_code=500
+  11:45:42.183 WARNING inventory-service    cid=c3-step3-057ad3a request failed: INJECTED_FAULT  error_code=INJECTED_FAULT
+  11:45:42.183 INFO    inventory-service    cid=c3-step3-057ad3a POST /api/v1/holds/8e9599c4-0b39-4864-a619-3f5b86f7ad41/confirm -> 500  method=POST path=/api/v1/holds/8e9599c4-0b39-4864-a619-3f5b86f7ad41/confirm status=500 duration_ms=0.7
+  11:45:42.198 WARNING booking-service      cid=c3-step3-057ad3a saga step failed, compensating  booking_id=31c96a49-a011-4a8d-a8c3-67f75eae10ac reason=SEAT_CONFIRMATION_FAILED from_status=PAYMENT_DONE steps=['REFUND_PAYMENT', 'RELEASE_SEATS']
+  11:45:42.221 INFO    payment-service      cid=c3-step3-057ad3a GET /api/v1/payments -> 200  method=GET path=/api/v1/payments status=200 duration_ms=13.8
+  11:45:42.328 INFO    mock-bank-gateway    cid=c3-step3-057ad3a refund processed  refund_id=rf_592f9566e0d843ecbe28 charge_id=ch_dfbd2c4fdc9f41f7a6fc amount_paise=980000
+  11:45:42.328 INFO    mock-bank-gateway    cid=c3-step3-057ad3a POST /gateway/v1/refunds -> 200  method=POST path=/gateway/v1/refunds status=200 duration_ms=80.8
+  11:45:42.347 INFO    payment-service      cid=c3-step3-057ad3a payment refunded  payment_id=edc4ad7a-dcfe-45eb-913f-a715d905597e amount_paise=980000 reason=SEAT_CONFIRMATION_FAILED
+  11:45:42.355 INFO    payment-service      cid=c3-step3-057ad3a POST /api/v1/payments/edc4ad7a-dcfe-45eb-913f-a715d905597e/refund -> 200  method=POST path=/api/v1/payments/edc4ad7a-dcfe-45eb-913f-a715d905597e/refund status=200 duration_ms=131.7
+  11:45:42.385 INFO    inventory-service    cid=c3-step3-057ad3a hold released  hold_id=8e9599c4-0b39-4864-a619-3f5b86f7ad41 booking_id=31c96a49-a011-4a8d-a8c3-67f75eae10ac seat_count=2 reason=SEAT_CONFIRMATION_FAILED
+  11:45:42.385 INFO    inventory-service    cid=c3-step3-057ad3a POST /api/v1/holds/8e9599c4-0b39-4864-a619-3f5b86f7ad41/release -> 200  method=POST path=/api/v1/holds/8e9599c4-0b39-4864-a619-3f5b86f7ad41/release status=200 duration_ms=13.7
+  11:45:42.395 INFO    booking-service      cid=c3-step3-057ad3a compensation finished, booking failed cleanly  booking_id=31c96a49-a011-4a8d-a8c3-67f75eae10ac
+  11:45:42.399 INFO    booking-service      cid=c3-step3-057ad3a POST /api/v1/bookings -> 502  method=POST path=/api/v1/bookings status=502 duration_ms=496.2
+  11:45:44.308 INFO    notification-service cid=c3-step3-057ad3a SMS sent to 98XXXXXX10  channel=SMS recipient=98XXXXXX10 text=Your Tatkal booking for train 22691 on 2087-08-13 could not be completed. Rs 9,800.00 has been refunded to your account. Ref 31C96A49.
+  11:45:44.354 INFO    notification-service cid=c3-step3-057ad3a EMAIL sent to a***@example.com  channel=EMAIL recipient=a***@example.com text=Your Tatkal booking for train 22691 on 2087-08-13 could not be completed. Rs 9,800.00 has been refunded to your account. Ref 31C96A49.
+  11:45:44.368 INFO    notification-service cid=c3-step3-057ad3a notification delivered  event_id=96c85f6d-3785-4321-93e9-2d552866c8e6 event_type=BOOKING_FAILED booking_id=31c96a49-a011-4a8d-a8c3-67f75eae10ac channels=['SMS', 'EMAIL']
+  11:45:44.368 INFO    notification-service cid=c3-step3-057ad3a POST /api/v1/notifications -> 201  method=POST path=/api/v1/notifications status=201 duration_ms=105.0
+  11:45:44.372 INFO    booking-service      cid=c3-step3-057ad3a outbox event delivered  event_id=96c85f6d-3785-4321-93e9-2d552866c8e6 event_type=BOOKING_FAILED booking_id=31c96a49-a011-4a8d-a8c3-67f75eae10ac attempt=1 duplicate_at_consumer=False
+[30 raw log lines saved to evidence/challenge-3c-saga/trace_step3_failure_20261021-171541.jsonl]
+
+--- recovery job log lines (scenario 4) ------------------------------------------------------------
+  11:46:08.111 INFO    booking-service      cid=recovery-d81e321 retrying unfinished compensation  booking_id=82f9e8b3-9bc5-4c78-9b4e-0861294e9ad4 steps=['REFUND_PAYMENT']
+  11:46:08.307 INFO    booking-service      cid=recovery-d81e321 compensation finished, booking failed cleanly  booking_id=82f9e8b3-9bc5-4c78-9b4e-0861294e9ad4
+  11:46:08.307 INFO    booking-service      cid=recovery-d81e321 recovery processed booking  booking_id=82f9e8b3-9bc5-4c78-9b4e-0861294e9ad4 status=FAILED
+  11:46:08.611 INFO    booking-service      cid=recovery-d81e321 outbox event delivered  event_id=8c6c2dc3-fdfb-4b59-a7f2-9c02185b6c23 event_type=BOOKING_FAILED booking_id=82f9e8b3-9bc5-4c78-9b4e-0861294e9ad4 attempt=1 duplicate_at_consumer=False
+[4 raw log lines saved to evidence/challenge-3c-saga/recovery_job_20261021-171541.jsonl]
+
+--- result -----------------------------------------------------------------------------------------
+  [PASS] 1: CONFIRMED after HOLD, CHARGE, CONFIRM
+  [PASS] 2: response 502 SEAT_CONFIRMATION_FAILED, booking FAILED
+  [PASS] 2: compensations ran in reverse order (refund, then release)
+  [PASS] 2: payment REFUNDED and refund SUCCEEDED
+  [PASS] 2: hold RELEASED and seats back in the quota
+  [PASS] 3: 402 PAYMENT_DECLINED, only RELEASE_SEATS compensated
+  [PASS] 3: seats back in the quota
+  [PASS] 4: booking waits in COMPENSATING while refunds are down
+  [PASS] 4: recovery job completed the refund, booking FAILED
+  [PASS] all bookings consistent across booking/inventory/payment
+  [PASS] quota: available (3) == total (4) - confirmed (1), nothing left HELD

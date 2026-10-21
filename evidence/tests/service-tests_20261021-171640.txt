@@ -1,7 +1,3 @@
-command : python scripts/stack.py test
-run at  : 2026-10-21 14:05:22 IST (UTC+0530)
-git     : ddaa5fb
-
 
 ==================== mock-bank-gateway ====================
 ============================= test session starts ==============================
@@ -22,7 +18,7 @@ tests/test_gateway.py::test_partial_outage_can_hit_refunds_only PASSED   [ 75%]
 tests/test_gateway.py::test_refund_only_once_and_never_more_than_charged PASSED [ 87%]
 tests/test_gateway.py::test_parallel_requests_with_one_key_create_one_charge PASSED [100%]
 
-============================== 8 passed in 0.50s ===============================
+============================== 8 passed in 0.31s ===============================
 
 ==================== inventory-service ====================
 ============================= test session starts ==============================
@@ -36,8 +32,8 @@ collecting ... collected 27 items
 
 tests/integration/test_br1_concurrent_holds.py::test_br1_atomic_hold_never_oversells PASSED [  3%]
 tests/integration/test_br1_concurrent_holds.py::test_naive_check_then_update_oversells PASSED [  7%]
-tests/integration/test_hold_retry_and_expiry.py::test_overlapping_retry_for_the_same_booking_gets_the_same_hold PASSED [ 11%]
-tests/integration/test_hold_retry_and_expiry.py::test_expiry_releases_only_stale_held_holds_and_is_safe_to_run_twice PASSED [ 14%]
+tests/integration/test_hold_retry_and_expiry.py::test_overlapping_retry_gets_same_hold PASSED [ 11%]
+tests/integration/test_hold_retry_and_expiry.py::test_expiry_releases_only_stale_held_holds PASSED [ 14%]
 tests/unit/test_br1_allocation.py::test_br1_allocation_is_all_or_nothing[5-1-True] PASSED [ 18%]
 tests/unit/test_br1_allocation.py::test_br1_allocation_is_all_or_nothing[5-5-True] PASSED [ 22%]
 tests/unit/test_br1_allocation.py::test_br1_allocation_is_all_or_nothing[5-6-False] PASSED [ 25%]
@@ -62,7 +58,7 @@ tests/unit/test_br3_fares.py::test_br3_rejects_classes_without_tatkal[3E] PASSED
 tests/unit/test_br3_fares.py::test_br3_rejects_classes_without_tatkal[XX] PASSED [ 96%]
 tests/unit/test_br3_fares.py::test_br3_rejects_non_positive_base_fare PASSED [100%]
 
-============================== 27 passed in 1.44s ==============================
+============================== 27 passed in 1.34s ==============================
 
 ==================== payment-service ====================
 ============================= test session starts ==============================
@@ -75,35 +71,35 @@ plugins: anyio-4.15.1
 collecting ... collected 41 items
 
 tests/integration/test_idempotent_payments_db.py::test_parallel_requests_with_the_same_key_charge_once PASSED [  2%]
-tests/integration/test_idempotent_payments_db.py::test_same_booking_with_different_keys_is_still_charged_once PASSED [  4%]
-tests/integration/test_idempotent_payments_db.py::test_a_request_that_lost_its_key_cannot_overwrite_the_new_owner PASSED [  7%]
-tests/integration/test_idempotent_payments_db.py::test_an_answer_that_is_only_true_for_now_is_not_stored PASSED [  9%]
-tests/integration/test_payment_fencing_db.py::test_void_before_the_charge_arrives_fences_the_late_charge PASSED [ 12%]
+tests/integration/test_idempotent_payments_db.py::test_same_booking_different_keys_charged_once PASSED [  4%]
+tests/integration/test_idempotent_payments_db.py::test_expired_owner_cannot_overwrite_new_owner PASSED [  7%]
+tests/integration/test_idempotent_payments_db.py::test_non_final_error_is_not_stored PASSED [  9%]
+tests/integration/test_payment_fencing_db.py::test_void_before_charge_blocks_late_charge PASSED [ 12%]
 tests/integration/test_payment_fencing_db.py::test_void_returns_an_existing_payment_unchanged PASSED [ 14%]
-tests/integration/test_payment_fencing_db.py::test_refund_during_a_retry_backoff_waits_instead_of_voiding PASSED [ 17%]
-tests/integration/test_payment_fencing_db.py::test_a_charge_that_died_long_ago_is_reconciled_with_the_bank PASSED [ 19%]
+tests/integration/test_payment_fencing_db.py::test_refund_during_backoff_gets_in_progress PASSED [ 17%]
+tests/integration/test_payment_fencing_db.py::test_dead_pending_charge_is_reconciled PASSED [ 19%]
 tests/integration/test_payment_fencing_db.py::test_charge_stops_retrying_once_the_payment_was_closed PASSED [ 21%]
-tests/integration/test_payment_fencing_db.py::test_a_capture_after_the_payment_was_voided_is_refunded_at_once PASSED [ 24%]
+tests/integration/test_payment_fencing_db.py::test_late_capture_after_void_is_refunded PASSED [ 24%]
 tests/unit/test_br4_payment_rules.py::test_br4_refund_is_always_the_full_captured_amount PASSED [ 26%]
 tests/unit/test_br4_payment_rules.py::test_br4_second_refund_is_refused PASSED [ 29%]
 tests/unit/test_br4_payment_rules.py::test_br4_only_captured_payments_can_be_refunded[PENDING] PASSED [ 31%]
 tests/unit/test_br4_payment_rules.py::test_br4_only_captured_payments_can_be_refunded[DECLINED] PASSED [ 34%]
 tests/unit/test_br4_payment_rules.py::test_br4_only_captured_payments_can_be_refunded[FAILED] PASSED [ 36%]
 tests/unit/test_br4_payment_rules.py::test_br4_only_captured_payments_can_be_refunded[VOIDED] PASSED [ 39%]
-tests/unit/test_br4_payment_rules.py::test_br4_a_capture_that_arrived_after_the_void_is_refunded_in_full PASSED [ 41%]
+tests/unit/test_br4_payment_rules.py::test_br4_late_capture_on_voided_is_refunded PASSED [ 41%]
 tests/unit/test_br4_payment_rules.py::test_br4_refunded_is_terminal PASSED [ 43%]
-tests/unit/test_br4_payment_rules.py::test_br4_a_failed_or_declined_payment_can_never_become_captured PASSED [ 46%]
-tests/unit/test_br4_payment_rules.py::test_br4_refunded_comes_from_captured_or_a_late_capture_on_a_voided_payment PASSED [ 48%]
+tests/unit/test_br4_payment_rules.py::test_br4_only_pending_can_become_captured PASSED [ 46%]
+tests/unit/test_br4_payment_rules.py::test_br4_refunded_from_captured_or_voided PASSED [ 48%]
 tests/unit/test_br4_payment_rules.py::test_charge_amount_limits[0] PASSED [ 51%]
 tests/unit/test_br4_payment_rules.py::test_charge_amount_limits[-100] PASSED [ 53%]
 tests/unit/test_br4_payment_rules.py::test_charge_amount_limits[50000001] PASSED [ 56%]
 tests/unit/test_gateway_client.py::test_timeouts_are_retried_with_the_same_idempotency_key PASSED [ 58%]
 tests/unit/test_gateway_client.py::test_gateway_down_gives_unavailable_not_unknown PASSED [ 60%]
-tests/unit/test_gateway_client.py::test_any_timeout_without_a_final_answer_means_outcome_unknown PASSED [ 63%]
+tests/unit/test_gateway_client.py::test_timeout_then_503s_is_outcome_unknown PASSED [ 63%]
 tests/unit/test_gateway_client.py::test_connection_refused_is_unavailable PASSED [ 65%]
 tests/unit/test_gateway_client.py::test_client_errors_are_not_retried PASSED [ 68%]
 tests/unit/test_gateway_client.py::test_declined_charge_is_reported_as_declined PASSED [ 70%]
-tests/unit/test_gateway_client.py::test_no_further_attempt_once_the_payment_is_no_longer_wanted PASSED [ 73%]
+tests/unit/test_gateway_client.py::test_no_retry_once_payment_is_closed PASSED [ 73%]
 tests/unit/test_gateway_client.py::test_backoff_is_exponential_with_full_jitter_and_a_cap[1-0.2] PASSED [ 75%]
 tests/unit/test_gateway_client.py::test_backoff_is_exponential_with_full_jitter_and_a_cap[2-0.4] PASSED [ 78%]
 tests/unit/test_gateway_client.py::test_backoff_is_exponential_with_full_jitter_and_a_cap[3-0.8] PASSED [ 80%]
@@ -116,7 +112,7 @@ tests/unit/test_idempotency_keys.py::test_bad_keys_are_rejected_with_400[short-I
 tests/unit/test_idempotency_keys.py::test_bad_keys_are_rejected_with_400[has spaces in it-IDEMPOTENCY_KEY_INVALID] PASSED [ 97%]
 tests/unit/test_idempotency_keys.py::test_uuid_keys_are_accepted PASSED  [100%]
 
-============================== 41 passed in 1.29s ==============================
+============================== 41 passed in 1.27s ==============================
 
 ==================== notification-service ====================
 ============================= test session starts ==============================
@@ -128,23 +124,23 @@ testpaths: tests
 plugins: anyio-4.15.1
 collecting ... collected 15 items
 
-tests/integration/test_duplicate_events_db.py::test_duplicate_events_send_one_message_per_channel PASSED [  6%]
-tests/integration/test_duplicate_events_db.py::test_provider_failure_records_nothing_so_a_retry_can_send PASSED [ 13%]
-tests/integration/test_duplicate_events_db.py::test_retry_after_a_partial_failure_sends_only_what_is_missing PASSED [ 20%]
-tests/integration/test_duplicate_events_db.py::test_event_still_being_sent_elsewhere_is_not_reported_as_done PASSED [ 26%]
-tests/integration/test_duplicate_events_db.py::test_claim_left_by_a_delivery_that_died_is_taken_over PASSED [ 33%]
+tests/integration/test_duplicate_events_db.py::test_concurrent_duplicates_send_once PASSED [  6%]
+tests/integration/test_duplicate_events_db.py::test_provider_failure_then_retry PASSED [ 13%]
+tests/integration/test_duplicate_events_db.py::test_partial_failure_retry_sends_only_missing PASSED [ 20%]
+tests/integration/test_duplicate_events_db.py::test_in_progress_elsewhere_returns_503 PASSED [ 26%]
+tests/integration/test_duplicate_events_db.py::test_dead_claim_is_taken_over PASSED [ 33%]
 tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[579000-5,790.00] PASSED [ 40%]
 tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[12345678-1,23,456.78] PASSED [ 46%]
 tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[100-1.00] PASSED [ 53%]
 tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[99-0.99] PASSED [ 60%]
 tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[1000000000-1,00,00,000.00] PASSED [ 66%]
 tests/unit/test_templates.py::test_confirmed_message_contains_pnr_and_amount PASSED [ 73%]
-tests/unit/test_templates.py::test_cancelled_message_states_the_tatkal_no_refund_rule PASSED [ 80%]
+tests/unit/test_templates.py::test_cancelled_message_says_no_refund PASSED [ 80%]
 tests/unit/test_templates.py::test_missing_template_data_is_rejected PASSED [ 86%]
 tests/unit/test_templates.py::test_unknown_event_type_is_rejected PASSED [ 93%]
 tests/unit/test_templates.py::test_recipients_are_masked_in_logs PASSED  [100%]
 
-============================== 15 passed in 1.14s ==============================
+============================== 15 passed in 1.04s ==============================
 
 ==================== booking-service ====================
 ============================= test session starts ==============================
@@ -156,17 +152,17 @@ testpaths: tests
 plugins: anyio-4.15.1
 collecting ... collected 41 items
 
-tests/integration/test_idempotent_bookings_db.py::test_key_taken_over_after_a_crash_does_not_book_again PASSED [  2%]
+tests/integration/test_idempotent_bookings_db.py::test_key_takeover_returns_existing_booking PASSED [  2%]
 tests/integration/test_idempotent_bookings_db.py::test_retry_of_a_failed_booking_gets_the_same_failure PASSED [  4%]
-tests/integration/test_idempotent_bookings_db.py::test_retry_while_the_first_saga_is_still_running_is_asked_to_come_back PASSED [  7%]
+tests/integration/test_idempotent_bookings_db.py::test_retry_while_saga_running_gets_409 PASSED [  7%]
 tests/integration/test_idempotent_bookings_db.py::test_two_requests_racing_with_one_key_start_one_saga PASSED [  9%]
 tests/integration/test_saga_db.py::test_happy_path_confirms_and_queues_notification PASSED [ 12%]
 tests/integration/test_saga_db.py::test_br6_failure_at_step_3_refunds_then_releases PASSED [ 14%]
 tests/integration/test_saga_db.py::test_failed_compensation_is_finished_by_recovery PASSED [ 17%]
-tests/integration/test_saga_db.py::test_saga_abandoned_after_payment_is_compensated_by_recovery PASSED [ 19%]
-tests/integration/test_saga_db.py::test_release_of_a_hold_inventory_does_not_know_counts_as_done PASSED [ 21%]
-tests/integration/test_saga_db.py::test_payment_not_seen_yet_is_voided_so_the_late_charge_fails PASSED [ 24%]
-tests/integration/test_saga_db.py::test_refund_of_a_charge_still_in_flight_is_finished_later PASSED [ 26%]
+tests/integration/test_saga_db.py::test_recovery_undoes_saga_stuck_after_payment PASSED [ 19%]
+tests/integration/test_saga_db.py::test_release_of_unknown_hold_counts_as_done PASSED [ 21%]
+tests/integration/test_saga_db.py::test_void_blocks_late_charge PASSED   [ 24%]
+tests/integration/test_saga_db.py::test_refund_of_in_flight_charge_finished_later PASSED [ 26%]
 tests/unit/test_br2_passengers.py::test_br2_accepts_one_to_four_passengers_aged_five_or_more[ages0] PASSED [ 29%]
 tests/unit/test_br2_passengers.py::test_br2_accepts_one_to_four_passengers_aged_five_or_more[ages1] PASSED [ 31%]
 tests/unit/test_br2_passengers.py::test_br2_accepts_one_to_four_passengers_aged_five_or_more[ages2] PASSED [ 34%]
@@ -188,9 +184,9 @@ tests/unit/test_br5_state_machine.py::test_br5_illegal_transitions_are_rejected[
 tests/unit/test_br5_state_machine.py::test_br5_terminal_states_have_no_exits PASSED [ 73%]
 tests/unit/test_br6_compensation_plan.py::test_br6_failure_after_payment_refunds_then_releases PASSED [ 75%]
 tests/unit/test_br6_compensation_plan.py::test_br6_declined_payment_only_releases_seats PASSED [ 78%]
-tests/unit/test_br6_compensation_plan.py::test_br6_unknown_payment_outcome_is_treated_as_maybe_charged PASSED [ 80%]
+tests/unit/test_br6_compensation_plan.py::test_br6_unknown_payment_outcome_is_refunded PASSED [ 80%]
 tests/unit/test_br6_compensation_plan.py::test_br6_nothing_to_undo_before_any_step_succeeded PASSED [ 82%]
-tests/unit/test_br6_compensation_plan.py::test_br6_hold_that_timed_out_may_exist_so_it_is_released PASSED [ 85%]
+tests/unit/test_br6_compensation_plan.py::test_br6_timed_out_hold_is_released PASSED [ 85%]
 tests/unit/test_br7_cancellation.py::test_br7_confirmed_ticket_releases_seats_without_refund PASSED [ 87%]
 tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_cancelled[PENDING] PASSED [ 90%]
 tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_cancelled[SEATS_HELD] PASSED [ 92%]
@@ -198,6 +194,6 @@ tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_can
 tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_cancelled[COMPENSATING] PASSED [ 97%]
 tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_cancelled[FAILED] PASSED [100%]
 
-============================== 41 passed in 1.28s ==============================
+============================== 41 passed in 1.41s ==============================
 
 All service test suites passed.

@@ -1,0 +1,416 @@
+openapi: 3.1.0
+info:
+  title: Payment Service
+  description: |-
+    Owns payments and refunds for bookings and is the only service that talks to the
+    bank gateway. Guarantees a booking is charged at most once (BR4):
+
+    * `Idempotency-Key` on `POST /payments` (stored with a request fingerprint and the response)
+    * `UNIQUE(booking_id)` on the payments table
+    * the same idempotency key on every retry towards the gateway
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      tags:
+      - health
+      summary: Liveness and database check
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/payments:
+    post:
+      tags:
+      - payments
+      summary: Charge a booking (saga step 2)
+      description: 'Unsafe to repeat, so an `Idempotency-Key` header is required. The same key with the same body
+        returns the stored response (header `Idempotent-Replayed: true`); the same key with a different body is
+        rejected with 422. A booking can only ever have one payment (BR4).'
+      operationId: create_payment_api_v1_payments_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChargeIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentOut'
+        '400':
+          description: Missing or malformed Idempotency-Key
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '402':
+          description: Declined by the bank (PAYMENT_DECLINED)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Booking already has a payment (PAYMENT_ALREADY_EXISTS) or the same key is still in progress
+            (IDEMPOTENCY_REQUEST_IN_PROGRESS)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Gateway unreachable, nothing charged (GATEWAY_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: Gateway timed out, outcome unknown (PAYMENT_OUTCOME_UNKNOWN)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags:
+      - payments
+      summary: Find the payment of a booking
+      operationId: find_payments_api_v1_payments_get
+      parameters:
+      - name: booking_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Booking Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentOut'
+                title: Response Find Payments Api V1 Payments Get
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/payments/{payment_id}:
+    get:
+      tags:
+      - payments
+      summary: Get a payment
+      operationId: get_payment_api_v1_payments__payment_id__get
+      parameters:
+      - name: payment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Payment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentOut'
+        '404':
+          description: No such payment (PAYMENT_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/payments/{payment_id}/refund:
+    post:
+      tags:
+      - payments
+      summary: Refund a payment in full (compensation of step 2)
+      description: Naturally idempotent - a payment has at most one refund (BR4), so repeating the call returns
+        the same REFUNDED payment. A PENDING payment is first reconciled with the gateway.
+      operationId: refund_payment_api_v1_payments__payment_id__refund_post
+      parameters:
+      - name: payment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Payment Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/RefundIn'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentOut'
+        '404':
+          description: No such payment (PAYMENT_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Nothing was taken, nothing to refund (PAYMENT_NOT_REFUNDABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Gateway did not confirm; safe to retry (REFUND_PENDING / GATEWAY_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  schemas:
+    ChargeIn:
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+          title: Booking Id
+        amount_paise:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Amount Paise
+          description: Amount in paise (Rs 1 = 100). Set by booking-service from the inventory quote.
+        currency:
+          type: string
+          const: INR
+          title: Currency
+          default: INR
+        method:
+          type: string
+          enum:
+          - UPI
+          - CARD
+          title: Method
+        payer_ref:
+          type: string
+          maxLength: 64
+          minLength: 3
+          title: Payer Ref
+          description: UPI id or card token. Ids starting with 'decline' are declined by the mock bank.
+      additionalProperties: false
+      type: object
+      required:
+      - booking_id
+      - amount_paise
+      - method
+      - payer_ref
+      title: ChargeIn
+      examples:
+      - amount_paise: 579000
+        booking_id: 0b3f6a52-8d4e-4b8e-9a51-1f1c2b7d9e10
+        currency: INR
+        method: UPI
+        payer_ref: asha@okmock
+    PaymentOut:
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+          title: Payment Id
+        booking_id:
+          type: string
+          format: uuid
+          title: Booking Id
+        amount_paise:
+          type: integer
+          title: Amount Paise
+        currency:
+          type: string
+          title: Currency
+        method:
+          type: string
+          title: Method
+        status:
+          type: string
+          enum:
+          - PENDING
+          - CAPTURED
+          - DECLINED
+          - FAILED
+          - REFUNDED
+          - VOIDED
+          title: Status
+        gateway_charge_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gateway Charge Id
+        failure_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Reason
+        gateway_attempts:
+          type: integer
+          title: Gateway Attempts
+        refund:
+          anyOf:
+          - $ref: '#/components/schemas/RefundOut'
+          - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - payment_id
+      - booking_id
+      - amount_paise
+      - currency
+      - method
+      - status
+      - gateway_attempts
+      - created_at
+      - updated_at
+      title: PaymentOut
+    RefundIn:
+      properties:
+        reason:
+          type: string
+          pattern: ^[A-Z_]{3,40}$
+          title: Reason
+          default: UNSPECIFIED
+          examples:
+          - SEAT_CONFIRMATION_FAILED
+      additionalProperties: false
+      type: object
+      title: RefundIn
+    RefundOut:
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+          title: Refund Id
+        amount_paise:
+          type: integer
+          title: Amount Paise
+        status:
+          type: string
+          enum:
+          - PENDING
+          - SUCCEEDED
+          title: Status
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        gateway_refund_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gateway Refund Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - refund_id
+      - amount_paise
+      - status
+      - created_at
+      title: RefundOut
+    Problem:
+      title: Problem
+      type: object
+      description: RFC 9457 problem details. Every service uses this shape for every error.
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      properties:
+        type:
+          type: string
+          example: https://tatkal.example/problems/seats-unavailable
+        title:
+          type: string
+          example: Not enough seats
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: Requested 4 seat(s) in 3A on train 12951 for 2026-11-05, only 2 left
+        instance:
+          type: string
+          example: /api/v1/holds
+        code:
+          type: string
+          description: Stable machine-readable error code
+          example: SEATS_UNAVAILABLE
+        rule:
+          type: string
+          description: Business rule id, present when a BR was violated
+          example: BR1
+        correlation_id:
+          type: string
+          example: 6f1c0d0b7d0e4a5c9a3c2f0a1b2c3d4e
+        errors:
+          type: array
+          description: Field errors, present when code is VALIDATION_FAILED
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+      additionalProperties: true
+

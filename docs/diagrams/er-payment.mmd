@@ -1,0 +1,31 @@
+erDiagram
+    PAYMENTS ||--o| REFUNDS : "at most one (BR4)"
+    PAYMENTS {
+        uuid payment_id PK
+        uuid booking_id UK "booking-service id, no FK (BR4)"
+        bigint amount_paise "CHECK > 0"
+        string currency
+        string method "UPI CARD"
+        string payer_ref
+        string status "PENDING CAPTURED DECLINED FAILED REFUNDED VOIDED"
+        string gateway_charge_id
+        string failure_reason
+        int gateway_attempts
+    }
+    REFUNDS {
+        uuid refund_id PK
+        uuid payment_id FK, UK
+        bigint amount_paise
+        string status "PENDING SUCCEEDED"
+        string gateway_refund_id
+        string reason
+    }
+    IDEMPOTENCY_KEYS {
+        string idem_key PK
+        string request_hash
+        string status
+        int response_code
+        text response_body
+        string resource_id
+        timestamptz locked_until
+    }

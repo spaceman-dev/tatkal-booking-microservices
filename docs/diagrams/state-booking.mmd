@@ -1,0 +1,14 @@
+stateDiagram-v2
+    direction LR
+    [*] --> PENDING: POST /bookings
+    PENDING --> SEATS_HELD: hold OK
+    PENDING --> FAILED: sold out / no quota
+    PENDING --> COMPENSATING: inventory unreachable
+    SEATS_HELD --> PAYMENT_DONE: payment captured
+    SEATS_HELD --> COMPENSATING: declined / bank down / unknown
+    PAYMENT_DONE --> CONFIRMED: seats confirmed, PNR issued
+    PAYMENT_DONE --> COMPENSATING: confirm failed
+    COMPENSATING --> FAILED: refund + release done
+    CONFIRMED --> CANCELLED: cancel (BR7)
+    FAILED --> [*]
+    CANCELLED --> [*]

@@ -1,0 +1,617 @@
+openapi: 3.1.0
+info:
+  title: Booking Service
+  description: |-
+    Owns bookings and their lifecycle, and **orchestrates the booking saga**:
+
+    1. hold seats (inventory-service) - undo: release
+    2. take payment (payment-service) - undo: refund
+    3. confirm seats (inventory-service) - pivot
+    4. notify (notification-service) - asynchronous, through a transactional outbox
+
+    `POST /bookings` needs an `Idempotency-Key`. Business rules owned here: BR2 (passengers),
+    BR5 (state machine), BR6 (compensation) and BR7 (Tatkal cancellation).
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      tags:
+      - health
+      summary: Liveness and database check
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/bookings:
+    post:
+      tags:
+      - bookings
+      summary: Book Tatkal seats (runs the booking saga)
+      description: 'Holds the seats, takes the payment and confirms the seats, compensating if a step fails. Requires
+        an `Idempotency-Key`: repeating the request with the same key and body returns the stored result (header
+        `Idempotent-Replayed: true`) and never books or charges twice; the same key with a different body is rejected
+        with 422.'
+      operationId: create_booking_api_v1_bookings_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingOut'
+        '400':
+          description: Missing or malformed Idempotency-Key
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '402':
+          description: Payment declined; seats released (PAYMENT_DECLINED)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No Tatkal quota for this train/date/class (INVENTORY_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Not enough seats (SEATS_UNAVAILABLE) or the same key is still in progress
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '502':
+          description: Failed after payment; refunded and seats released (SEAT_CONFIRMATION_FAILED)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Inventory or bank unreachable; nothing charged
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: Payment outcome unknown; booking failed and any charge is refunded
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags:
+      - bookings
+      summary: List bookings (newest first)
+      operationId: list_bookings_api_v1_bookings_get
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - PENDING
+            - SEATS_HELD
+            - PAYMENT_DONE
+            - CONFIRMED
+            - COMPENSATING
+            - FAILED
+            - CANCELLED
+            type: string
+          - type: 'null'
+          title: Status
+      - name: train_no
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            pattern: ^\d{5}$
+          - type: 'null'
+          title: Train No
+      - name: journey_date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Journey Date
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingOut'
+                title: Response List Bookings Api V1 Bookings Get
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/bookings/{booking_id}:
+    get:
+      tags:
+      - bookings
+      summary: Get a booking
+      operationId: get_booking_api_v1_bookings__booking_id__get
+      parameters:
+      - name: booking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Booking Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingOut'
+        '404':
+          description: No such booking (BOOKING_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/bookings/{booking_id}/saga:
+    get:
+      tags:
+      - bookings
+      summary: 'Saga log: every step and compensation for a booking'
+      operationId: get_saga_log_api_v1_bookings__booking_id__saga_get
+      parameters:
+      - name: booking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Booking Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SagaStepOut'
+                title: Response Get Saga Log Api V1 Bookings  Booking Id  Saga Get
+        '404':
+          description: No such booking (BOOKING_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/bookings/{booking_id}/cancel:
+    post:
+      tags:
+      - bookings
+      summary: Cancel a confirmed booking (BR7)
+      description: Seats go back to the quota; a confirmed Tatkal ticket gets no refund. Cancelling twice is harmless.
+      operationId: cancel_booking_api_v1_bookings__booking_id__cancel_post
+      parameters:
+      - name: booking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Booking Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingOut'
+        '404':
+          description: No such booking (BOOKING_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Booking is not CONFIRMED (BOOKING_NOT_CANCELLABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Seats could not be released; still CONFIRMED, retry is safe
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  schemas:
+    BookingIn:
+      properties:
+        train_no:
+          type: string
+          pattern: ^\d{5}$
+          title: Train No
+          examples:
+          - '12951'
+        journey_date:
+          type: string
+          format: date
+          title: Journey Date
+        travel_class:
+          type: string
+          enum:
+          - 2S
+          - SL
+          - CC
+          - 3A
+          - 2A
+          - EC
+          title: Travel Class
+        passengers:
+          items:
+            $ref: '#/components/schemas/PassengerIn'
+          type: array
+          maxItems: 10
+          title: Passengers
+        contact:
+          $ref: '#/components/schemas/ContactIn'
+        payment:
+          $ref: '#/components/schemas/PaymentIn'
+      additionalProperties: false
+      type: object
+      required:
+      - train_no
+      - journey_date
+      - travel_class
+      - passengers
+      - contact
+      - payment
+      title: BookingIn
+      description: 'No price in the request: the amount always comes from inventory-service (BR3).'
+      examples:
+      - contact:
+          email: asha@example.com
+          mobile: '9876543210'
+        journey_date: '2026-11-20'
+        passengers:
+        - age: 34
+          gender: F
+          name: Asha Rao
+        - age: 36
+          gender: M
+          name: Vikram Rao
+        payment:
+          method: UPI
+          payer_ref: asha@okmock
+        train_no: '12951'
+        travel_class: 3A
+    BookingOut:
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+          title: Booking Id
+        pnr:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pnr
+        status:
+          type: string
+          enum:
+          - PENDING
+          - SEATS_HELD
+          - PAYMENT_DONE
+          - CONFIRMED
+          - COMPENSATING
+          - FAILED
+          - CANCELLED
+          title: Status
+        train_no:
+          type: string
+          title: Train No
+        journey_date:
+          type: string
+          format: date
+          title: Journey Date
+        travel_class:
+          type: string
+          title: Travel Class
+        passengers:
+          items:
+            $ref: '#/components/schemas/PassengerOut'
+          type: array
+          title: Passengers
+        contact:
+          $ref: '#/components/schemas/ContactOut'
+        amount_paise:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Amount Paise
+          description: Fare quoted by inventory-service (BR3)
+        refund_paise:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Refund Paise
+        hold_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Hold Id
+          description: inventory-service hold (id only)
+        payment_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Payment Id
+          description: payment-service payment (id only)
+        failure_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Reason
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - booking_id
+      - status
+      - train_no
+      - journey_date
+      - travel_class
+      - passengers
+      - contact
+      - created_at
+      - updated_at
+      title: BookingOut
+    ContactIn:
+      properties:
+        mobile:
+          type: string
+          pattern: ^[6-9]\d{9}$
+          title: Mobile
+          description: 10-digit Indian mobile number
+        email:
+          anyOf:
+          - type: string
+            maxLength: 120
+            pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          - type: 'null'
+          title: Email
+      additionalProperties: false
+      type: object
+      required:
+      - mobile
+      title: ContactIn
+    ContactOut:
+      properties:
+        mobile:
+          type: string
+          title: Mobile
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+      type: object
+      required:
+      - mobile
+      title: ContactOut
+    PassengerIn:
+      properties:
+        name:
+          type: string
+          maxLength: 60
+          minLength: 2
+          pattern: ^[A-Za-z][A-Za-z .'-]*$
+          title: Name
+        age:
+          type: integer
+          maximum: 125.0
+          minimum: 0.0
+          title: Age
+        gender:
+          type: string
+          enum:
+          - M
+          - F
+          - T
+          title: Gender
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - age
+      - gender
+      title: PassengerIn
+    PassengerOut:
+      properties:
+        name:
+          type: string
+          title: Name
+        age:
+          type: integer
+          title: Age
+        gender:
+          type: string
+          title: Gender
+      type: object
+      required:
+      - name
+      - age
+      - gender
+      title: PassengerOut
+    PaymentIn:
+      properties:
+        method:
+          type: string
+          enum:
+          - UPI
+          - CARD
+          title: Method
+        payer_ref:
+          type: string
+          maxLength: 64
+          minLength: 3
+          title: Payer Ref
+          description: UPI id or card token; ids starting with 'decline' are declined by the mock bank
+      additionalProperties: false
+      type: object
+      required:
+      - method
+      - payer_ref
+      title: PaymentIn
+    SagaStepOut:
+      properties:
+        step:
+          type: string
+          title: Step
+        action:
+          type: string
+          enum:
+          - EXECUTE
+          - COMPENSATE
+          title: Action
+        outcome:
+          type: string
+          enum:
+          - OK
+          - FAILED
+          title: Outcome
+        detail:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Detail
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - step
+      - action
+      - outcome
+      - created_at
+      title: SagaStepOut
+    Problem:
+      title: Problem
+      type: object
+      description: RFC 9457 problem details. Every service uses this shape for every error.
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      properties:
+        type:
+          type: string
+          example: https://tatkal.example/problems/seats-unavailable
+        title:
+          type: string
+          example: Not enough seats
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: Requested 4 seat(s) in 3A on train 12951 for 2026-11-05, only 2 left
+        instance:
+          type: string
+          example: /api/v1/holds
+        code:
+          type: string
+          description: Stable machine-readable error code
+          example: SEATS_UNAVAILABLE
+        rule:
+          type: string
+          description: Business rule id, present when a BR was violated
+          example: BR1
+        correlation_id:
+          type: string
+          example: 6f1c0d0b7d0e4a5c9a3c2f0a1b2c3d4e
+        errors:
+          type: array
+          description: Field errors, present when code is VALIDATION_FAILED
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+      additionalProperties: true
+

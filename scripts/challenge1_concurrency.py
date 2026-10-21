@@ -25,6 +25,7 @@ from common import (
     check_services_up,
     fresh_run_date,
     http,
+    log_lines,
     open_quota,
     passenger_name,
     query,
@@ -150,6 +151,7 @@ def main() -> None:
     if "atomic" in verdicts:
         out(f"  atomic (conditional UPDATE): {'PASS - never over-allocated' if verdicts['atomic'] else 'FAIL'}")
     out(WHY)
+    out.save_raw_logs("inventory_logs", log_lines("inventory-service", since=out.started_utc))
     out.save()
     sys.exit(0 if verdicts.get("atomic", True) else 1)
 

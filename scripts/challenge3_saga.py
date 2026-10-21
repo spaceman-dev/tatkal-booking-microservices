@@ -27,8 +27,10 @@ from common import (
     Evidence,
     booking_body,
     check_services_up,
+    compact_log,
     fresh_run_date,
     http,
+    log_lines,
     open_quota,
     query,
     rupees,
@@ -39,10 +41,24 @@ from common import (
 TRAIN, CLASS, BASE_FARE, SEATS = "22691", "2A", 440_000, 4
 
 
-def book(client, run_date, passengers, payer="asha@okmock"):
+def book(client, run_date, passengers, payer="asha@okmock", correlation_id=None):
     body = booking_body(TRAIN, run_date, CLASS, passengers, payer_ref=payer, email="asha@example.com")
-    r = client.post(f"{BOOKING}/api/v1/bookings", json=body, headers={"Idempotency-Key": f"c3-{uuid.uuid4()}"})
+    headers = {"Idempotency-Key": f"c3-{uuid.uuid4()}"}
+    if correlation_id:
+        headers["X-Correlation-ID"] = correlation_id
+    r = client.post(f"{BOOKING}/api/v1/bookings", json=body, headers=headers)
     return r, r.json()
+
+
+def trace(out, correlation_id):
+    """Every log line, from every service, that carries this correlation id - in time order."""
+    services = ("booking-service", "inventory-service", "payment-service", "mock-bank-gateway", "notification-service")
+    entries = sorted((e for s in services for e in log_lines(s, correlation_id=correlation_id)), key=lambda e: e["ts"])
+    for entry in entries:
+        out("  " + compact_log(entry))
+    if not entries:
+        out("  (no logs/ folder - start the services with scripts/stack.py to see the trace)")
+    return entries
 
 
 def show_response(out, r, data):
@@ -122,7 +138,9 @@ def main() -> None:
     out.section("2. failure forced at step 3 (CONFIRM_SEATS)")
     out("  arming fault: the next 2 confirm calls fail with HTTP 500 (booking-service retries once)")
     client.post(f"{INVENTORY}/api/v1/admin/faults", json={"operation": "confirm_hold", "times": 2, "status_code": 500})
-    r, data = book(client, run_date, [("Vikram Rao", 36, "M"), ("Neha Rao", 9, "F")])
+    step3_cid = f"c3-step3-{uuid.uuid4().hex[:12]}"
+    out(f"  X-Correlation-ID: {step3_cid}")
+    r, data = book(client, run_date, [("Vikram Rao", 36, "M"), ("Neha Rao", 9, "F")], correlation_id=step3_cid)
     show_response(out, r, data)
     failed_3 = data["booking_id"]
     steps = show_saga_log(out, client, failed_3)
@@ -206,6 +224,16 @@ def main() -> None:
     checks.append(("all bookings consistent across booking/inventory/payment", consistent))
     checks.append((f"quota: available ({q['available_seats']}) == total ({SEATS}) - confirmed ({confirmed_seats}), "
                    f"nothing left HELD", q["available_seats"] == SEATS - confirmed_seats and q["seats_held"] == 0))
+
+    out.section(f"scenario 2 traced through all service logs (correlation id {step3_cid})")
+    out.save_raw_logs("trace_step3_failure", trace(out, step3_cid))
+    recovery_logs = [e for e in log_lines("booking-service", since=out.started_utc)
+                     if str(e.get("correlation_id", "")).startswith("recovery-")]
+    if recovery_logs:
+        out.section("recovery job log lines (scenario 4)")
+        for entry in recovery_logs:
+            out("  " + compact_log(entry))
+        out.save_raw_logs("recovery_job", recovery_logs)
 
     client.put(f"{GATEWAY}/gateway/v1/admin/mode", json={"mode": "normal"})
     client.delete(f"{INVENTORY}/api/v1/admin/faults")

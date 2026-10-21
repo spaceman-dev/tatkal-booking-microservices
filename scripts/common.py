@@ -97,8 +97,10 @@ class Evidence:
     """Prints to the terminal and keeps a copy for evidence/<folder>/<name>_<timestamp>.txt"""
 
     def __init__(self, folder: str, name: str, title: str):
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.path = ROOT / "evidence" / folder / f"{name}_{stamp}.txt"
+        self.stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.folder = ROOT / "evidence" / folder
+        self.path = self.folder / f"{name}_{self.stamp}.txt"
+        self.started_utc = datetime.now(timezone.utc)
         self.lines: list[str] = []
         self("=" * 100)
         self(title)
@@ -123,6 +125,15 @@ class Evidence:
         self.path.write_text("\n".join(self.lines) + "\n")
         print(f"\n[saved to {self.path.relative_to(ROOT)}]")
         return self.path
+
+    def save_raw_logs(self, name: str, entries: list[dict]) -> None:
+        """Raw JSON log lines (as written by the services) next to the run's output."""
+        if not entries:
+            return
+        path = self.folder / f"{name}_{self.stamp}.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+        self(f"[{len(entries)} raw log lines saved to {path.relative_to(ROOT)}]")
 
 
 def git_commit() -> str:

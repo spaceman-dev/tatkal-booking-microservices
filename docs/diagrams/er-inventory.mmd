@@ -1,0 +1,30 @@
+erDiagram
+    TRAINS ||--o{ SEAT_INVENTORY : "quota per date and class"
+    SEAT_INVENTORY ||--o{ SEAT_HOLDS : "seats taken by"
+    TRAINS {
+        string train_no PK
+        string name
+        string from_station
+        string to_station
+        string departure_time
+    }
+    SEAT_INVENTORY {
+        bigint inventory_id PK
+        string train_no FK
+        date journey_date "UK with train_no, class"
+        string travel_class
+        int total_seats
+        int available_seats "CHECK >= 0 (BR1)"
+        int base_fare_paise
+        int version
+    }
+    SEAT_HOLDS {
+        uuid hold_id PK
+        uuid booking_id UK "booking-service id, no FK"
+        bigint inventory_id FK
+        int seat_count
+        int fare_per_seat_paise "BR3"
+        int total_amount_paise
+        string status "HELD CONFIRMED RELEASED"
+        string release_reason
+    }

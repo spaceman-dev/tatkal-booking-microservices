@@ -29,7 +29,8 @@ PROBLEM_SCHEMA = {
     "additionalProperties": True,
 }
 
-_PROBLEM_CONTENT = {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}
+def _problem_content() -> dict:
+    return {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}
 
 
 def install_problem_openapi(app: FastAPI) -> None:
@@ -46,7 +47,7 @@ def install_problem_openapi(app: FastAPI) -> None:
             for operation in path_item.values():
                 for code, response in operation.get("responses", {}).items():
                     if code.isdigit() and int(code) >= 400:
-                        response["content"] = _PROBLEM_CONTENT
+                        response["content"] = _problem_content()
                         if code == "422":
                             response["description"] = "Validation failed or a business rule was violated"
         app.openapi_schema = schema

@@ -1,0 +1,30 @@
+flowchart LR
+    client(["API client<br/>scripts / Swagger UI / curl"])
+
+    subgraph system["Tatkal booking system"]
+        direction LR
+        booking["<b>booking-service</b> :8001<br/>bookings + passengers<br/>saga orchestrator<br/>idempotency keys, outbox"]
+        inventory["<b>inventory-service</b> :8002<br/>trains, fares (BR3)<br/>Tatkal quota, seat holds (BR1)"]
+        payment["<b>payment-service</b> :8003<br/>payments, refunds (BR4)"]
+        notification["<b>notification-service</b> :8004<br/>SMS / e-mail delivery log"]
+
+        bookingdb[("booking_db<br/>Postgres :5441")]
+        inventorydb[("inventory_db<br/>Postgres :5442")]
+        paymentdb[("payment_db<br/>Postgres :5443")]
+        notificationdb[("notification_db<br/>Postgres :5444")]
+    end
+
+    gateway["<b>mock-bank-gateway</b> :8099<br/>simulated external bank<br/>(normal / slow / down / flaky)"]
+
+    client -- "HTTP/JSON  POST /api/v1/bookings<br/>(Idempotency-Key)" --> booking
+    client -. "HTTP/JSON  GET availability" .-> inventory
+
+    booking -- "HTTP/JSON  sync<br/>1. POST /holds<br/>3. POST /holds/{id}/confirm<br/>undo: POST /holds/{id}/release" --> inventory
+    booking -- "HTTP/JSON  sync<br/>2. POST /payments (Idempotency-Key)<br/>undo: POST /payments/{id}/refund" --> payment
+    payment -- "HTTP/JSON  sync<br/>POST /gateway/v1/charges, /refunds<br/>timeout + retry, same key" --> gateway
+    booking -. "HTTP/JSON  async (outbox dispatcher)<br/>POST /notifications (event_id)" .-> notification
+
+    booking -- "SQL, own user" --- bookingdb
+    inventory -- "SQL, own user" --- inventorydb
+    payment -- "SQL, own user" --- paymentdb
+    notification -- "SQL, own user" --- notificationdb

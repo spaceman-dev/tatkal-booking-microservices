@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant A as Request A
+    participant DB as seat_inventory row (available = 1)
+    participant B as Request B
+
+    rect rgb(255, 235, 235)
+    Note over A,B: naive check-then-update (what we do NOT do)
+    A->>DB: SELECT available_seats  -> 1
+    B->>DB: SELECT available_seats  -> 1
+    A->>DB: UPDATE SET available_seats = 0
+    B->>DB: UPDATE SET available_seats = 0   (overwrites A: lost update)
+    Note over A,B: both requests got the last seat - oversold
+    end
+
+    rect rgb(235, 255, 235)
+    Note over A,B: atomic conditional UPDATE (inventory-service)
+    A->>DB: UPDATE ... SET available_seats = available_seats - 1<br/>WHERE available_seats >= 1
+    Note over DB: row lock held by A
+    B->>DB: same UPDATE - blocks on A's row lock
+    A->>DB: COMMIT (available = 0)
+    DB-->>B: WHERE re-checked on the new row: 0 rows updated
+    Note over B: 409 SEATS_UNAVAILABLE
+    end

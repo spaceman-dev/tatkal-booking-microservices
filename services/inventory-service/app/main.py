@@ -49,7 +49,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Inventory Service",
         version="1.0.0",
-        description=DESCRIPTION,
+        description=DESCRIPTION.strip(),
         lifespan=lifespan,
         openapi_tags=[
             {"name": "catalogue", "description": "Trains, availability and fares"},

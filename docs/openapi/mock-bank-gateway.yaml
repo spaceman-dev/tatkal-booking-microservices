@@ -1,0 +1,408 @@
+openapi: 3.1.0
+info:
+  title: Mock Bank Gateway
+  description: |-
+    Stand-in for an external UPI/card payment gateway. Not one of our business
+    services: it has no database and keeps everything in memory.
+
+    * Deduplicates on the `Idempotency-Key` header like real gateways do.
+    * Payer ids starting with `decline` or `fail` are declined (`INSUFFICIENT_FUNDS`).
+    * Behaviour can be switched at runtime: `normal`, `slow`, `down`, `flaky`.
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      tags:
+      - health
+      summary: Health
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /gateway/v1/charges:
+    post:
+      tags:
+      - charges
+      summary: Charge a payer
+      operationId: create_charge_gateway_v1_charges_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChargeIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '400':
+          description: Missing Idempotency-Key
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Key reused with another payload
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Simulated outage
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags:
+      - charges
+      summary: Look up charges (reconciliation)
+      operationId: find_charges_gateway_v1_charges_get
+      parameters:
+      - name: merchant_reference
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Merchant Reference
+      - name: idempotency_key
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /gateway/v1/charges/{charge_id}:
+    get:
+      tags:
+      - charges
+      summary: Get Charge
+      operationId: get_charge_gateway_v1_charges__charge_id__get
+      parameters:
+      - name: charge_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Charge Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Unknown charge
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /gateway/v1/refunds:
+    post:
+      tags:
+      - refunds
+      summary: Refund a captured charge
+      operationId: create_refund_gateway_v1_refunds_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '400':
+          description: Missing Idempotency-Key
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Unknown charge
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Not captured / already refunded / key reused
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Simulated outage
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /gateway/v1/stats:
+    get:
+      tags:
+      - test support
+      summary: Counters used as evidence (no duplicates)
+      operationId: stats_gateway_v1_stats_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /gateway/v1/admin/mode:
+    get:
+      tags:
+      - test support
+      summary: Get Mode
+      operationId: get_mode_gateway_v1_admin_mode_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+    put:
+      tags:
+      - test support
+      summary: Switch normal/slow/down/flaky
+      operationId: set_mode_gateway_v1_admin_mode_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModeIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /gateway/v1/admin/reset:
+    post:
+      tags:
+      - test support
+      summary: Reset
+      operationId: reset_gateway_v1_admin_reset_post
+      responses:
+        '204':
+          description: Successful Response
+components:
+  schemas:
+    ChargeIn:
+      properties:
+        amount_paise:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Amount Paise
+        currency:
+          type: string
+          const: INR
+          title: Currency
+          default: INR
+        method:
+          type: string
+          enum:
+          - UPI
+          - CARD
+          title: Method
+        payer_ref:
+          type: string
+          maxLength: 64
+          minLength: 3
+          title: Payer Ref
+        merchant_reference:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Merchant Reference
+      additionalProperties: false
+      type: object
+      required:
+      - amount_paise
+      - method
+      - payer_ref
+      - merchant_reference
+      title: ChargeIn
+    ModeIn:
+      properties:
+        mode:
+          type: string
+          enum:
+          - normal
+          - slow
+          - down
+          - flaky
+          title: Mode
+        latency_ms:
+          anyOf:
+          - type: integer
+            maximum: 60000.0
+            minimum: 0.0
+          - type: 'null'
+          title: Latency Ms
+        slow_latency_ms:
+          anyOf:
+          - type: integer
+            maximum: 120000.0
+            minimum: 0.0
+          - type: 'null'
+          title: Slow Latency Ms
+        failure_rate:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Failure Rate
+        affects:
+          anyOf:
+          - items:
+              type: string
+              enum:
+              - charge
+              - refund
+            type: array
+          - type: 'null'
+          title: Affects
+          description: Operations hit by down/flaky (default both) - e.g. only refunds failing
+      additionalProperties: false
+      type: object
+      required:
+      - mode
+      title: ModeIn
+      examples:
+      - mode: down
+      - mode: slow
+        slow_latency_ms: 3000
+      - affects:
+        - refund
+        mode: down
+    RefundIn:
+      properties:
+        charge_id:
+          type: string
+          title: Charge Id
+        amount_paise:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Amount Paise
+      additionalProperties: false
+      type: object
+      required:
+      - charge_id
+      - amount_paise
+      title: RefundIn
+    Problem:
+      title: Problem
+      type: object
+      description: RFC 9457 problem details. Every service uses this shape for every error.
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      properties:
+        type:
+          type: string
+          example: https://tatkal.example/problems/seats-unavailable
+        title:
+          type: string
+          example: Not enough seats
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: Requested 4 seat(s) in 3A on train 12951 for 2026-11-05, only 2 left
+        instance:
+          type: string
+          example: /api/v1/holds
+        code:
+          type: string
+          description: Stable machine-readable error code
+          example: SEATS_UNAVAILABLE
+        rule:
+          type: string
+          description: Business rule id, present when a BR was violated
+          example: BR1
+        correlation_id:
+          type: string
+          example: 6f1c0d0b7d0e4a5c9a3c2f0a1b2c3d4e
+        errors:
+          type: array
+          description: Field errors, present when code is VALIDATION_FAILED
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+      additionalProperties: true
+

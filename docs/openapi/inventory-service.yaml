@@ -1,0 +1,829 @@
+openapi: 3.1.0
+info:
+  title: Inventory Service
+  description: |-
+    Owns the train catalogue, fares and the **Tatkal seat quota**, and is the only
+    service that can hold, confirm or release seats.
+
+    * Contended resource: `seat_inventory.available_seats` for a train/date/class.
+    * BR1 (no over-allocation) is enforced by a single conditional `UPDATE`.
+    * BR3 (server-side Tatkal fare) is computed in `app/domain/fares.py`.
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      tags:
+      - health
+      summary: Liveness and database check
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/trains:
+    get:
+      tags:
+      - catalogue
+      summary: List trains
+      operationId: list_trains_api_v1_trains_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TrainOut'
+                type: array
+                title: Response List Trains Api V1 Trains Get
+  /api/v1/trains/{train_no}/availability:
+    get:
+      tags:
+      - catalogue
+      summary: Tatkal availability and fares for one run
+      operationId: availability_api_v1_trains__train_no__availability_get
+      parameters:
+      - name: train_no
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^\d{5}$
+          title: Train No
+      - name: journey_date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          description: YYYY-MM-DD
+          title: Journey Date
+        description: YYYY-MM-DD
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityOut'
+        '404':
+          description: Unknown train (TRAIN_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/inventory:
+    post:
+      tags:
+      - inventory
+      summary: Open the Tatkal quota for a train run and class
+      operationId: open_quota_api_v1_inventory_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenQuotaIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaOut'
+        '404':
+          description: Unknown train (TRAIN_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Quota already open (QUOTA_ALREADY_OPEN)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags:
+      - inventory
+      summary: Current quota counters for one train/date/class
+      operationId: get_quota_api_v1_inventory_get
+      parameters:
+      - name: train_no
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^\d{5}$
+          title: Train No
+      - name: journey_date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Journey Date
+      - name: travel_class
+        in: query
+        required: true
+        schema:
+          enum:
+          - 2S
+          - SL
+          - CC
+          - 3A
+          - 2A
+          - EC
+          type: string
+          title: Travel Class
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaOut'
+        '404':
+          description: No quota (INVENTORY_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/holds:
+    post:
+      tags:
+      - holds
+      summary: Hold seats for a booking (saga step 1)
+      description: 'Takes `seat_count` seats out of the quota atomically and returns the price (BR3). Idempotent
+        per `booking_id`: a repeat call returns the existing hold with 200 and does not take more seats.'
+      operationId: place_hold_api_v1_holds_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldOut'
+        '200':
+          description: A hold for this booking already existed and is returned unchanged
+        '404':
+          description: No quota for this train/date/class (INVENTORY_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Not enough seats left (SEATS_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags:
+      - holds
+      summary: Find the hold of a booking
+      operationId: find_holds_api_v1_holds_get
+      parameters:
+      - name: booking_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Booking Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HoldOut'
+                title: Response Find Holds Api V1 Holds Get
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/holds/{hold_id}:
+    get:
+      tags:
+      - holds
+      summary: Get a hold
+      operationId: get_hold_api_v1_holds__hold_id__get
+      parameters:
+      - name: hold_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Hold Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldOut'
+        '404':
+          description: No such hold (HOLD_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/holds/{hold_id}/confirm:
+    post:
+      tags:
+      - holds
+      summary: Confirm a hold after payment (saga step 3)
+      description: HELD -> CONFIRMED. Repeating it on a CONFIRMED hold is a no-op.
+      operationId: confirm_hold_api_v1_holds__hold_id__confirm_post
+      parameters:
+      - name: hold_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Hold Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldOut'
+        '404':
+          description: No such hold (HOLD_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Hold was released (HOLD_NOT_ACTIVE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/holds/{hold_id}/release:
+    post:
+      tags:
+      - holds
+      summary: Release a hold (compensation or cancellation)
+      description: HELD/CONFIRMED -> RELEASED and the seats go back to the quota exactly once. Safe to repeat.
+      operationId: release_hold_api_v1_holds__hold_id__release_post
+      parameters:
+      - name: hold_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Hold Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/ReleaseIn'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldOut'
+        '404':
+          description: No such hold (HOLD_NOT_FOUND)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/admin/hold-strategy:
+    get:
+      tags:
+      - admin (dev only)
+      summary: Which hold implementation is active
+      operationId: get_strategy_api_v1_admin_hold_strategy_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+    put:
+      tags:
+      - admin (dev only)
+      summary: Switch between atomic and naive (race demo) holds
+      operationId: set_strategy_api_v1_admin_hold_strategy_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldStrategyIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/admin/faults:
+    get:
+      tags:
+      - admin (dev only)
+      summary: List armed faults
+      operationId: list_faults_api_v1_admin_faults_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+    post:
+      tags:
+      - admin (dev only)
+      summary: Make the next N calls of an operation fail
+      operationId: arm_fault_api_v1_admin_faults_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaultIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    delete:
+      tags:
+      - admin (dev only)
+      summary: Clear all faults
+      operationId: clear_faults_api_v1_admin_faults_delete
+      responses:
+        '204':
+          description: Successful Response
+components:
+  schemas:
+    AvailabilityOut:
+      properties:
+        train_no:
+          type: string
+          title: Train No
+        journey_date:
+          type: string
+          format: date
+          title: Journey Date
+        classes:
+          items:
+            $ref: '#/components/schemas/ClassAvailability'
+          type: array
+          title: Classes
+      type: object
+      required:
+      - train_no
+      - journey_date
+      - classes
+      title: AvailabilityOut
+    ClassAvailability:
+      properties:
+        travel_class:
+          type: string
+          title: Travel Class
+        total_seats:
+          type: integer
+          title: Total Seats
+        available_seats:
+          type: integer
+          title: Available Seats
+        base_fare_paise:
+          type: integer
+          title: Base Fare Paise
+        tatkal_charge_paise:
+          type: integer
+          title: Tatkal Charge Paise
+        fare_per_seat_paise:
+          type: integer
+          title: Fare Per Seat Paise
+      type: object
+      required:
+      - travel_class
+      - total_seats
+      - available_seats
+      - base_fare_paise
+      - tatkal_charge_paise
+      - fare_per_seat_paise
+      title: ClassAvailability
+    FaultIn:
+      properties:
+        operation:
+          type: string
+          enum:
+          - place_hold
+          - confirm_hold
+          - release_hold
+          title: Operation
+        times:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Times
+          default: 1
+        status_code:
+          type: integer
+          maximum: 599.0
+          minimum: 500.0
+          title: Status Code
+          default: 500
+      additionalProperties: false
+      type: object
+      required:
+      - operation
+      title: FaultIn
+    HoldIn:
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+          title: Booking Id
+        train_no:
+          type: string
+          pattern: ^\d{5}$
+          title: Train No
+          examples:
+          - '12951'
+        journey_date:
+          type: string
+          format: date
+          title: Journey Date
+        travel_class:
+          type: string
+          enum:
+          - 2S
+          - SL
+          - CC
+          - 3A
+          - 2A
+          - EC
+          title: Travel Class
+        seat_count:
+          type: integer
+          maximum: 6.0
+          minimum: 1.0
+          title: Seat Count
+      additionalProperties: false
+      type: object
+      required:
+      - booking_id
+      - train_no
+      - journey_date
+      - travel_class
+      - seat_count
+      title: HoldIn
+      examples:
+      - booking_id: 0b3f6a52-8d4e-4b8e-9a51-1f1c2b7d9e10
+        journey_date: '2026-11-20'
+        seat_count: 2
+        train_no: '12951'
+        travel_class: 3A
+    HoldOut:
+      properties:
+        hold_id:
+          type: string
+          format: uuid
+          title: Hold Id
+        booking_id:
+          type: string
+          format: uuid
+          title: Booking Id
+        train_no:
+          type: string
+          title: Train No
+        journey_date:
+          type: string
+          format: date
+          title: Journey Date
+        travel_class:
+          type: string
+          title: Travel Class
+        seat_count:
+          type: integer
+          title: Seat Count
+        status:
+          type: string
+          enum:
+          - HELD
+          - CONFIRMED
+          - RELEASED
+          title: Status
+        fare_per_seat_paise:
+          type: integer
+          title: Fare Per Seat Paise
+        total_amount_paise:
+          type: integer
+          title: Total Amount Paise
+        release_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Release Reason
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - hold_id
+      - booking_id
+      - train_no
+      - journey_date
+      - travel_class
+      - seat_count
+      - status
+      - fare_per_seat_paise
+      - total_amount_paise
+      - created_at
+      - updated_at
+      title: HoldOut
+    HoldStrategyIn:
+      properties:
+        strategy:
+          type: string
+          enum:
+          - atomic
+          - naive
+          title: Strategy
+      type: object
+      required:
+      - strategy
+      title: HoldStrategyIn
+    OpenQuotaIn:
+      properties:
+        train_no:
+          type: string
+          pattern: ^\d{5}$
+          title: Train No
+          examples:
+          - '12951'
+        journey_date:
+          type: string
+          format: date
+          title: Journey Date
+        travel_class:
+          type: string
+          enum:
+          - 2S
+          - SL
+          - CC
+          - 3A
+          - 2A
+          - EC
+          title: Travel Class
+        total_seats:
+          type: integer
+          maximum: 500.0
+          minimum: 1.0
+          title: Total Seats
+        base_fare_paise:
+          type: integer
+          maximum: 10000000.0
+          minimum: 100.0
+          title: Base Fare Paise
+          description: Base fare per seat in paise (Rs 1 = 100)
+      additionalProperties: false
+      type: object
+      required:
+      - train_no
+      - journey_date
+      - travel_class
+      - total_seats
+      - base_fare_paise
+      title: OpenQuotaIn
+      examples:
+      - base_fare_paise: 249500
+        journey_date: '2026-11-20'
+        total_seats: 5
+        train_no: '12951'
+        travel_class: 3A
+    QuotaOut:
+      properties:
+        inventory_id:
+          type: integer
+          title: Inventory Id
+        train_no:
+          type: string
+          title: Train No
+        journey_date:
+          type: string
+          format: date
+          title: Journey Date
+        travel_class:
+          type: string
+          title: Travel Class
+        total_seats:
+          type: integer
+          title: Total Seats
+        available_seats:
+          type: integer
+          title: Available Seats
+        base_fare_paise:
+          type: integer
+          title: Base Fare Paise
+        version:
+          type: integer
+          title: Version
+        seats_held:
+          type: integer
+          title: Seats Held
+        seats_confirmed:
+          type: integer
+          title: Seats Confirmed
+        seats_released:
+          type: integer
+          title: Seats Released
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - inventory_id
+      - train_no
+      - journey_date
+      - travel_class
+      - total_seats
+      - available_seats
+      - base_fare_paise
+      - version
+      - seats_held
+      - seats_confirmed
+      - seats_released
+      - updated_at
+      title: QuotaOut
+    ReleaseIn:
+      properties:
+        reason:
+          type: string
+          pattern: ^[A-Z_]{3,40}$
+          title: Reason
+          default: UNSPECIFIED
+          examples:
+          - PAYMENT_DECLINED
+      additionalProperties: false
+      type: object
+      title: ReleaseIn
+    TrainOut:
+      properties:
+        train_no:
+          type: string
+          title: Train No
+        name:
+          type: string
+          title: Name
+        from_station:
+          type: string
+          title: From Station
+        to_station:
+          type: string
+          title: To Station
+        departure_time:
+          type: string
+          title: Departure Time
+      type: object
+      required:
+      - train_no
+      - name
+      - from_station
+      - to_station
+      - departure_time
+      title: TrainOut
+    Problem:
+      title: Problem
+      type: object
+      description: RFC 9457 problem details. Every service uses this shape for every error.
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      properties:
+        type:
+          type: string
+          example: https://tatkal.example/problems/seats-unavailable
+        title:
+          type: string
+          example: Not enough seats
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: Requested 4 seat(s) in 3A on train 12951 for 2026-11-05, only 2 left
+        instance:
+          type: string
+          example: /api/v1/holds
+        code:
+          type: string
+          description: Stable machine-readable error code
+          example: SEATS_UNAVAILABLE
+        rule:
+          type: string
+          description: Business rule id, present when a BR was violated
+          example: BR1
+        correlation_id:
+          type: string
+          example: 6f1c0d0b7d0e4a5c9a3c2f0a1b2c3d4e
+        errors:
+          type: array
+          description: Field errors, present when code is VALIDATION_FAILED
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+      additionalProperties: true
+tags:
+- name: catalogue
+  description: Trains, availability and fares
+- name: inventory
+  description: Tatkal quota per train/date/class
+- name: holds
+  description: Seat holds used by the booking saga
+- name: health
+

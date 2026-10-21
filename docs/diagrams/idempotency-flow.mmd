@@ -1,0 +1,16 @@
+flowchart TD
+    start(["POST with Idempotency-Key K"]) --> valid{"K present and<br/>well-formed?"}
+    valid -- no --> e400["400 IDEMPOTENCY_KEY_REQUIRED / INVALID"]
+    valid -- yes --> claim["INSERT (K, request hash, IN_PROGRESS, lease)<br/>ON CONFLICT DO NOTHING"]
+    claim -- "row inserted: this request owns K" --> work["run the operation<br/>(booking saga / charge)"]
+    work --> store["UPDATE K: COMPLETED,<br/>status code + exact response body"]
+    store --> reply["return the response"]
+    claim -- "K already exists" --> same{"same request hash?"}
+    same -- no --> e422["422 IDEMPOTENCY_KEY_REUSED"]
+    same -- yes --> done{"K COMPLETED?"}
+    done -- yes --> replay["replay stored response<br/>Idempotent-Replayed: true"]
+    done -- "no, IN_PROGRESS" --> lease{"lease expired?<br/>(first attempt died)"}
+    lease -- yes --> work
+    lease -- no --> wait["wait 100 ms"] --> timeout{"waited longer than<br/>IDEMPOTENCY_WAIT_SECONDS?"}
+    timeout -- no --> claim
+    timeout -- yes --> e409["409 IDEMPOTENCY_REQUEST_IN_PROGRESS<br/>Retry-After: 2"]

@@ -137,7 +137,7 @@ def reset(request: Request):
 def create_app() -> FastAPI:
     settings = get_settings()
     setup_logging(settings.service_name, settings.log_level)
-    app = FastAPI(title="Mock Bank Gateway", version="1.0.0", description=DESCRIPTION)
+    app = FastAPI(title="Mock Bank Gateway", version="1.0.0", description=DESCRIPTION.strip())
     app.state.settings = settings
     app.state.gateway = Gateway(settings.gateway_mode, settings.gateway_latency_ms,
                                 settings.gateway_slow_latency_ms, settings.gateway_failure_rate)

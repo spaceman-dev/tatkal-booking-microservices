@@ -1,0 +1,16 @@
+stateDiagram-v2
+    direction LR
+    state "Seat hold (inventory-service)" as hold {
+        [*] --> HELD: POST /holds
+        HELD --> CONFIRMED: confirm
+        HELD --> RELEASED: release (compensation)
+        CONFIRMED --> RELEASED: release (cancellation)
+    }
+    state "Payment (payment-service)" as pay {
+        [*] --> PENDING: POST /payments
+        PENDING --> CAPTURED: bank captured
+        PENDING --> DECLINED: bank declined
+        PENDING --> FAILED: bank unreachable
+        PENDING --> VOIDED: timed out, bank has no charge
+        CAPTURED --> REFUNDED: refund (once, in full)
+    }

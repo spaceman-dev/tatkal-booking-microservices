@@ -40,7 +40,7 @@ def create_app() -> FastAPI:
         yield
         engine.dispose()
 
-    app = FastAPI(title="Notification Service", version="1.0.0", description=DESCRIPTION, lifespan=lifespan)
+    app = FastAPI(title="Notification Service", version="1.0.0", description=DESCRIPTION.strip(), lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = engine
     app.state.provider = provider

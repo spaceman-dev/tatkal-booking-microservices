@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
         gateway.close()
         engine.dispose()
 
-    app = FastAPI(title="Payment Service", version="1.0.0", description=DESCRIPTION, lifespan=lifespan)
+    app = FastAPI(title="Payment Service", version="1.0.0", description=DESCRIPTION.strip(), lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = engine
     app.state.payments = PaymentService(engine, gateway)

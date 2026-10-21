@@ -1,0 +1,314 @@
+openapi: 3.1.0
+info:
+  title: Notification Service
+  description: |-
+    Turns booking events into SMS / e-mail messages through a simulated provider and
+    keeps the delivery log. Duplicate events (same `event_id`) never produce a second
+    message, which is what makes booking-service's at-least-once outbox safe.
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      tags:
+      - health
+      summary: Liveness and database check
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/notifications:
+    post:
+      tags:
+      - notifications
+      summary: Deliver a booking event as SMS (and e-mail if given)
+      description: 'Called by booking-service''s outbox dispatcher, which may deliver the same event more than once.
+        The `event_id` makes this safe: a repeat returns 200 with `duplicate: true` and sends nothing.'
+      operationId: publish_api_v1_notifications_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishOut'
+        '200':
+          description: Duplicate event - nothing sent again
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Provider failed; nothing recorded, retry later (PROVIDER_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags:
+      - notifications
+      summary: Messages sent for a booking
+      operationId: list_for_booking_api_v1_notifications_get
+      parameters:
+      - name: booking_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Booking Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryOut'
+                title: Response List For Booking Api V1 Notifications Get
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/admin/provider:
+    put:
+      tags:
+      - admin (dev only)
+      summary: Change the simulated provider's failure rate
+      operationId: set_provider_api_v1_admin_provider_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation failed or a business rule was violated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  schemas:
+    DeliveryOut:
+      properties:
+        notification_id:
+          type: string
+          format: uuid
+          title: Notification Id
+        event_id:
+          type: string
+          title: Event Id
+        event_type:
+          type: string
+          title: Event Type
+        booking_id:
+          type: string
+          format: uuid
+          title: Booking Id
+        channel:
+          type: string
+          enum:
+          - SMS
+          - EMAIL
+          title: Channel
+        recipient:
+          type: string
+          title: Recipient
+        message:
+          type: string
+          title: Message
+        status:
+          type: string
+          enum:
+          - PENDING
+          - SENT
+          title: Status
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        sent_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Sent At
+      type: object
+      required:
+      - notification_id
+      - event_id
+      - event_type
+      - booking_id
+      - channel
+      - recipient
+      - message
+      - status
+      - created_at
+      title: DeliveryOut
+    EventIn:
+      properties:
+        event_id:
+          type: string
+          maxLength: 64
+          minLength: 8
+          title: Event Id
+          description: Unique per event; used to drop duplicates
+        event_type:
+          type: string
+          enum:
+          - BOOKING_CONFIRMED
+          - BOOKING_FAILED
+          - BOOKING_CANCELLED
+          title: Event Type
+        booking_id:
+          type: string
+          format: uuid
+          title: Booking Id
+        recipient:
+          $ref: '#/components/schemas/Recipient'
+        data:
+          additionalProperties: true
+          type: object
+          title: Data
+      additionalProperties: false
+      type: object
+      required:
+      - event_id
+      - event_type
+      - booking_id
+      - recipient
+      - data
+      title: EventIn
+      examples:
+      - booking_id: 0b3f6a52-8d4e-4b8e-9a51-1f1c2b7d9e10
+        data:
+          amount_paise: 579000
+          journey_date: '2026-11-20'
+          passenger_count: 2
+          pnr: '4521876390'
+          train_no: '12951'
+          travel_class: 3A
+        event_id: 4f7d2c1e-5b8a-4c3d-9e2f-1a2b3c4d5e6f
+        event_type: BOOKING_CONFIRMED
+        recipient:
+          email: asha@example.com
+          mobile: '9876543210'
+    ProviderIn:
+      properties:
+        failure_rate:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Failure Rate
+      additionalProperties: false
+      type: object
+      required:
+      - failure_rate
+      title: ProviderIn
+    PublishOut:
+      properties:
+        event_id:
+          type: string
+          title: Event Id
+        duplicate:
+          type: boolean
+          title: Duplicate
+        deliveries:
+          items:
+            $ref: '#/components/schemas/DeliveryOut'
+          type: array
+          title: Deliveries
+      type: object
+      required:
+      - event_id
+      - duplicate
+      - deliveries
+      title: PublishOut
+    Recipient:
+      properties:
+        mobile:
+          type: string
+          pattern: ^[6-9]\d{9}$
+          title: Mobile
+          description: 10-digit Indian mobile number
+        email:
+          anyOf:
+          - type: string
+            maxLength: 120
+            pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          - type: 'null'
+          title: Email
+      additionalProperties: false
+      type: object
+      required:
+      - mobile
+      title: Recipient
+    Problem:
+      title: Problem
+      type: object
+      description: RFC 9457 problem details. Every service uses this shape for every error.
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      properties:
+        type:
+          type: string
+          example: https://tatkal.example/problems/seats-unavailable
+        title:
+          type: string
+          example: Not enough seats
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: Requested 4 seat(s) in 3A on train 12951 for 2026-11-05, only 2 left
+        instance:
+          type: string
+          example: /api/v1/holds
+        code:
+          type: string
+          description: Stable machine-readable error code
+          example: SEATS_UNAVAILABLE
+        rule:
+          type: string
+          description: Business rule id, present when a BR was violated
+          example: BR1
+        correlation_id:
+          type: string
+          example: 6f1c0d0b7d0e4a5c9a3c2f0a1b2c3d4e
+        errors:
+          type: array
+          description: Field errors, present when code is VALIDATION_FAILED
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+      additionalProperties: true
+

@@ -1,0 +1,30 @@
+sequenceDiagram
+    autonumber
+    actor C as Client
+    participant B as booking-service
+    participant I as inventory-service
+    participant P as payment-service
+    participant G as mock-bank-gateway
+
+    C->>B: POST /api/v1/bookings  [Idempotency-Key: K]
+    B->>I: 1. POST /api/v1/holds
+    I-->>B: 201 HELD
+    B->>P: 2. POST /api/v1/payments
+    P->>G: POST /gateway/v1/charges
+    G-->>P: 200 captured
+    P-->>B: 201 CAPTURED
+    B->>I: 3. POST /api/v1/holds/{id}/confirm
+    I--xB: 500 (retried once, fails again)
+    Note over B: PAYMENT_DONE -> COMPENSATING<br/>plan = [REFUND_PAYMENT, RELEASE_SEATS]  (BR6, newest first)
+    B->>P: undo 2: POST /api/v1/payments/{id}/refund
+    P->>G: POST /gateway/v1/refunds
+    G-->>P: 200 processed
+    P-->>B: 200 REFUNDED
+    B->>I: undo 1: POST /api/v1/holds/{id}/release
+    I-->>B: 200 RELEASED (seats back in the quota)
+    Note over B: COMPENSATING -> FAILED, outbox event BOOKING_FAILED
+    B-->>C: 502 SEAT_CONFIRMATION_FAILED (problem+json, booking_status FAILED)
+
+    opt a compensation call itself fails (e.g. bank refunds down)
+        Note over B: booking stays COMPENSATING with the remaining steps saved,<br/>the recovery job retries them until they succeed
+    end

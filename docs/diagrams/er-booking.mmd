@@ -1,0 +1,55 @@
+erDiagram
+    BOOKINGS ||--|{ PASSENGERS : "has 1-4 (BR2)"
+    BOOKINGS ||--o{ SAGA_LOG : "audit of steps"
+    BOOKINGS ||--o{ OUTBOX : "events to send"
+    BOOKINGS {
+        uuid booking_id PK
+        string pnr UK "set when CONFIRMED"
+        string status "state machine (BR5)"
+        string train_no
+        date journey_date
+        string travel_class
+        int passenger_count "CHECK 1-4"
+        string contact_mobile
+        bigint amount_paise "quoted by inventory (BR3)"
+        bigint refund_paise
+        uuid hold_id "inventory-service id, no FK"
+        uuid payment_id "payment-service id, no FK"
+        string failure_reason
+        string compensation_steps "still to do"
+        string idempotency_key
+        timestamptz updated_at
+    }
+    PASSENGERS {
+        uuid booking_id PK, FK
+        int seq PK
+        string name
+        int age "CHECK >= 5"
+        string gender
+    }
+    SAGA_LOG {
+        bigint id PK
+        uuid booking_id
+        string step
+        string action "EXECUTE or COMPENSATE"
+        string outcome
+        string detail
+    }
+    OUTBOX {
+        uuid event_id PK
+        uuid booking_id
+        string event_type
+        jsonb payload
+        string status "PENDING SENT DEAD"
+        int attempts
+        timestamptz next_attempt_at
+    }
+    IDEMPOTENCY_KEYS {
+        string idem_key PK
+        string request_hash "SHA-256 fingerprint"
+        string status "IN_PROGRESS COMPLETED"
+        int response_code
+        text response_body
+        string resource_id
+        timestamptz locked_until
+    }

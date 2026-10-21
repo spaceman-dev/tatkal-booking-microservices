@@ -182,6 +182,7 @@ def main() -> None:
         out("  " + compact_log(entry))
     if not replay_logs:
         out("  (no log file found - start the services with scripts/stack.py to get logs/)")
+    out.save_raw_logs("replay_logs", replay_logs)
 
     out.section("result")
     for text, passed in checks:

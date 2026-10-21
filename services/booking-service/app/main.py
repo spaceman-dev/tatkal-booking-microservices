@@ -71,7 +71,7 @@ def create_app() -> FastAPI:
             client.close()
         engine.dispose()
 
-    app = FastAPI(title="Booking Service", version="1.0.0", description=DESCRIPTION, lifespan=lifespan)
+    app = FastAPI(title="Booking Service", version="1.0.0", description=DESCRIPTION.strip(), lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = engine
     app.state.saga = saga

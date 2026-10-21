@@ -1,0 +1,12 @@
+erDiagram
+    NOTIFICATIONS {
+        uuid notification_id PK
+        string event_id UK "unique with channel - drops duplicates"
+        string channel UK "SMS EMAIL"
+        string event_type
+        uuid booking_id "booking-service id, no FK"
+        string recipient
+        text message
+        string status "PENDING SENT"
+        timestamptz sent_at
+    }

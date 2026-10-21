@@ -329,7 +329,7 @@ components:
             type: array
           - type: 'null'
           title: Affects
-          description: Operations hit by down/flaky (default both) - e.g. only refunds failing
+          description: Operations hit by down/flaky (default both). ['refund'] = refund-only outage
       additionalProperties: false
       type: object
       required:

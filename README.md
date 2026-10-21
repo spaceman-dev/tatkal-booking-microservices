@@ -1,7 +1,9 @@
 # Tatkal Booking System
 
-Scalable Services (SEZG583), Assignment 1. Group members: Dhruv Bhat, Ratani Snehi Rajesh Darshana,
-Atharva Kadam, N Abhishek Reddy.
+Scalable Services (SEZG583), Assignment 1.
+
+Team: Dhruv Bhat (2025TM93139), Ratani Snehi Rajesh Darshana (2025TM93530), Atharva Kadam (2025TM93221),
+N Abhishek Reddy (2023MT93400).
 
 Indian Railways opens a small **Tatkal** quota on every train at 10 AM the day before the journey, and a
 very large number of people try to book those few seats in the same minute. We picked this because the
@@ -10,7 +12,7 @@ problems the assignment asks about show up on their own:
 - the last 5 seats must never be sold to 20 people (concurrency),
 - a passenger who taps "Pay" twice must not be charged twice (idempotency),
 - "money debited but ticket not booked" must end with an automatic refund (saga with compensation),
-- the bank is slow or down at exactly the worst moment (resilience).
+- the bank tends to be slow or down right when everyone is paying (resilience).
 
 The system is four business services and one mock bank, written in Python (FastAPI), each service with its
 own PostgreSQL database and its own credentials. Services talk to each other only over REST.
@@ -27,8 +29,6 @@ own PostgreSQL database and its own credentials. Services talk to each other onl
 
 The design report (`docs/report/`) explains why the system is split this way, the data model, the APIs
 and the trade-offs. Evidence for the three engineering challenges is in [`evidence/`](evidence).
-
----
 
 ## 1. Prerequisites
 
@@ -127,7 +127,7 @@ so a missing value stops the service at start-up instead of quietly using the wr
 | `GATEWAY_URL`, `GATEWAY_TIMEOUT_SECONDS`, `GATEWAY_MAX_ATTEMPTS`, `GATEWAY_BACKOFF_BASE_SECONDS`, `GATEWAY_BACKOFF_CAP_SECONDS` | payment | `http://localhost:8099`, `2.0`, `3`, `0.2`, `2.0` | bank calls: timeout, retries, exponential backoff with full jitter |
 | `SEED_DEMO_DATA`, `SEED_DAYS` | inventory | `true`, `7` | demo trains and quota |
 | `HOLD_STRATEGY`, `NAIVE_THINK_TIME_MS` | inventory | `atomic`, `150` | `naive` exists only to demonstrate the race in Challenge 1 |
-| `HOLD_EXPIRY_ENABLED`, `HOLD_TTL_SECONDS`, `HOLD_SWEEP_INTERVAL_SECONDS` | inventory | `true`, `600`, `30` | safety net: holds still HELD after 10 minutes are released |
+| `HOLD_EXPIRY_ENABLED`, `HOLD_TTL_SECONDS`, `HOLD_SWEEP_INTERVAL_SECONDS` | inventory | `true`, `600`, `30` | fallback: holds still HELD after 10 minutes are released |
 | `ADMIN_API_ENABLED` | inventory, notification | `true` | dev-only `/api/v1/admin/*` (fault injection, strategy switch). Turn off outside a dev machine |
 | `PROVIDER_FAILURE_RATE`, `PROVIDER_LATENCY_MS` | notification | `0.0`, `30` | simulated SMS provider |
 | `CLAIM_LEASE_SECONDS`, `DUPLICATE_WAIT_SECONDS` | notification | `30`, `2.0` | how long a message being sent stays claimed; how long a duplicate event waits for it |
@@ -160,7 +160,7 @@ With the stack running and the tooling venv active:
 
 | Script | Challenge | What it shows |
 |---|---|---|
-| `python scripts/challenge1_concurrency.py --strategy both` | 1. Concurrency | 20 parallel bookings for 5 seats: the naive check-then-update oversells, the real code confirms exactly 5 and rejects 15 with 409 |
+| `python scripts/challenge1_concurrency.py --strategy both` | 1. Concurrency | 20 parallel bookings for 5 seats: the naive check-then-update oversells, the real code confirms 5 and rejects 15 with 409 |
 | `python scripts/challenge2_idempotency.py` | 2. Idempotency | sequential, failed, mismatched and 10 simultaneous repeats of one key; one booking, one charge |
 | `python scripts/challenge3_saga.py` | 3C. Saga with compensation | failure forced at step 3 is undone (refund, then release); a failed compensation is finished by the recovery job (waits ~30 s) |
 | `python scripts/bank_failure_modes.py` | condition (e) | one booking each with the bank normal, slow, down and flaky: one capture at most, seats released on failure |
@@ -176,7 +176,7 @@ Each script prints its result and saves a timestamped copy under `evidence/`. Us
 | BR1 | Seats of a train/date/class are never over-allocated; a request that does not fully fit is refused | inventory-service |
 | BR2 | A Tatkal booking has 1 to 4 passengers, each at least 5 years old | booking-service |
 | BR3 | The fare is computed on the server: base fare + Tatkal charge (class percentage, clamped to min/max) | inventory-service |
-| BR4 | A booking is charged at most once; only a captured payment can be refunded, in full, once | payment-service |
+| BR4 | A booking is charged at most once; only money that was really taken can be refunded, in full, once | payment-service |
 | BR5 | A booking only moves along its state machine | booking-service |
 | BR6 | If the saga fails, whatever may have happened is undone newest-first: refund, then release | booking-service |
 | BR7 | Cancelling a confirmed Tatkal ticket returns the seats but refunds nothing | booking-service |
@@ -195,7 +195,7 @@ services/
   mock-bank-gateway/         small stand-alone mock, no database
 scripts/                     stack.py, challenge scripts, export_openapi.py
 tests/e2e/                   end-to-end test of the main transaction
-docs/                        report, diagrams (Mermaid source + PNG/SVG), OpenAPI specs, business rules, video script
+docs/                        report, diagrams (Mermaid source + PNG/SVG), OpenAPI specs, business rules
 evidence/                    one folder per challenge with outputs and a README linking files to claims
 ```
 

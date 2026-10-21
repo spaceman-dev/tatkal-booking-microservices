@@ -2,9 +2,8 @@ openapi: 3.1.0
 info:
   title: Notification Service
   description: |-
-    Turns booking events into SMS / e-mail messages through a simulated provider and
-    keeps the delivery log. Duplicate events (same `event_id`) never produce a second
-    message, which is what makes booking-service's at-least-once outbox safe.
+    Sends SMS / e-mail for booking events (simulated provider) and keeps a delivery log.
+    A repeated event (same `event_id`) is not sent again, so booking-service's outbox can retry safely.
   version: 1.0.0
 paths:
   /health:
@@ -23,11 +22,10 @@ paths:
     post:
       tags:
       - notifications
-      summary: Deliver a booking event as SMS (and e-mail if given)
-      description: 'Called by booking-service''s outbox dispatcher, which may deliver the same event more than once.
-        The `event_id` makes this safe: each channel is sent at most once per event, and a repeat returns 200 with
-        `duplicate: true` and sends nothing. A repeat that arrives while the first delivery is still sending waits
-        for it (up to 2 s).'
+      summary: Send a booking event as SMS (and e-mail if given)
+      description: 'Called by booking-service''s outbox, which can deliver the same event more than once. Each channel
+        is sent at most once per `event_id`. A repeat gets 200 with `duplicate: true`. If the first delivery is
+        still sending, the repeat waits for it (up to 2 s).'
       operationId: publish_api_v1_notifications_post
       requestBody:
         required: true
@@ -43,7 +41,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublishOut'
         '200':
-          description: Duplicate event - nothing sent again
+          description: Duplicate event, nothing sent again
         '422':
           description: Validation failed or a business rule was violated
           content:
@@ -51,8 +49,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
-          description: Provider failed - channels already sent stay sent, the rest are released (PROVIDER_UNAVAILABLE);
-            or another delivery is still sending the event (NOTIFICATION_IN_PROGRESS). Retry later either way.
+          description: PROVIDER_UNAVAILABLE (sent channels stay sent, the rest are released) or NOTIFICATION_IN_PROGRESS
+            (another delivery is still sending). Retry later.
           content:
             application/problem+json:
               schema:
@@ -175,7 +173,7 @@ components:
           maxLength: 64
           minLength: 8
           title: Event Id
-          description: Unique per event; used to drop duplicates
+          description: Unique per event, used to spot duplicates
         event_type:
           type: string
           enum:

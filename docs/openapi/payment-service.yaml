@@ -2,12 +2,12 @@ openapi: 3.1.0
 info:
   title: Payment Service
   description: |-
-    Owns payments and refunds for bookings and is the only service that talks to the
-    bank gateway. Guarantees a booking is charged at most once (BR4):
+    Payments and refunds for bookings. The only service that talks to the bank gateway.
+    A booking is charged at most once (BR4) because of:
 
     * `Idempotency-Key` on `POST /payments` (stored with a request fingerprint and the response)
     * `UNIQUE(booking_id)` on the payments table
-    * the same idempotency key on every retry towards the gateway
+    * the same idempotency key on every retry to the gateway
   version: 1.0.0
 paths:
   /health:
@@ -27,9 +27,9 @@ paths:
       tags:
       - payments
       summary: Charge a booking (saga step 2)
-      description: 'Unsafe to repeat, so an `Idempotency-Key` header is required. The same key with the same body
-        returns the stored response (header `Idempotent-Replayed: true`); the same key with a different body is
-        rejected with 422. A booking can only ever have one payment (BR4).'
+      description: 'Needs an `Idempotency-Key` header. Same key and same body returns the stored response (with
+        `Idempotent-Replayed: true`), same key with a different body gets 422. A booking can only have one payment
+        (BR4).'
       operationId: create_payment_api_v1_payments_post
       parameters:
       - name: Idempotency-Key
@@ -185,8 +185,8 @@ paths:
       tags:
       - payments
       summary: Refund a payment in full (compensation of step 2)
-      description: Naturally idempotent - a payment has at most one refund (BR4), so repeating the call returns
-        the same REFUNDED payment. A PENDING payment is first reconciled with the gateway.
+      description: 'Safe to repeat: a payment has at most one refund (BR4), so a repeat returns the same REFUNDED
+        payment. A PENDING payment is reconciled with the bank first.'
       operationId: refund_payment_api_v1_payments__payment_id__refund_post
       parameters:
       - name: payment_id
@@ -225,7 +225,7 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: Charge still in flight (PAYMENT_IN_PROGRESS) or the gateway did not confirm (REFUND_PENDING
-            / GATEWAY_UNAVAILABLE); safe to retry
+            / GATEWAY_UNAVAILABLE). Safe to retry
           content:
             application/problem+json:
               schema:

@@ -2,14 +2,14 @@ openapi: 3.1.0
 info:
   title: Booking Service
   description: |-
-    Owns bookings and their lifecycle, and **orchestrates the booking saga**:
+    Owns bookings and runs the booking saga:
 
-    1. hold seats (inventory-service) - undo: release
-    2. take payment (payment-service) - undo: refund
-    3. confirm seats (inventory-service) - pivot
-    4. notify (notification-service) - asynchronous, through a transactional outbox
+    1. hold seats (inventory-service), undone by a release
+    2. take payment (payment-service), undone by a refund
+    3. confirm seats (inventory-service), the pivot step
+    4. notify (notification-service), async through the outbox
 
-    `POST /bookings` needs an `Idempotency-Key`. Business rules owned here: BR2 (passengers),
+    `POST /bookings` needs an `Idempotency-Key`. Business rules here: BR2 (passengers),
     BR5 (state machine), BR6 (compensation) and BR7 (Tatkal cancellation).
   version: 1.0.0
 paths:
@@ -30,10 +30,10 @@ paths:
       tags:
       - bookings
       summary: Book Tatkal seats (runs the booking saga)
-      description: 'Holds the seats, takes the payment and confirms the seats, compensating if a step fails. Requires
-        an `Idempotency-Key`: repeating the request with the same key and body returns the stored result (header
-        `Idempotent-Replayed: true`) and never books or charges twice; the same key with a different body is rejected
-        with 422.'
+      description: 'Holds the seats, takes the payment and confirms the seats. If a step fails, the earlier ones
+        are undone. Needs an `Idempotency-Key`: a repeat with the same key and body gets the stored result (header
+        `Idempotent-Replayed: true`), so nothing is booked or charged twice. The same key with a different body
+        gets 422.'
       operationId: create_booking_api_v1_bookings_post
       parameters:
       - name: Idempotency-Key
@@ -244,7 +244,7 @@ paths:
       tags:
       - bookings
       summary: Cancel a confirmed booking (BR7)
-      description: Seats go back to the quota; a confirmed Tatkal ticket gets no refund. Cancelling twice is harmless.
+      description: Seats go back to the quota, no refund for a confirmed Tatkal ticket. Cancelling twice is harmless.
       operationId: cancel_booking_api_v1_bookings__booking_id__cancel_post
       parameters:
       - name: booking_id

@@ -20,7 +20,7 @@ flowchart LR
     client -. "HTTP/JSON  GET availability" .-> inventory
 
     booking -- "HTTP/JSON  sync<br/>1. POST /holds<br/>3. POST /holds/{id}/confirm<br/>undo: POST /holds/{id}/release" --> inventory
-    booking -- "HTTP/JSON  sync<br/>2. POST /payments (Idempotency-Key)<br/>undo: POST /payments/{id}/refund" --> payment
+    booking -- "HTTP/JSON  sync<br/>2. POST /payments (Idempotency-Key)<br/>undo: POST /payments/{id}/refund<br/>or POST /payments/void" --> payment
     payment -- "HTTP/JSON  sync<br/>POST /gateway/v1/charges, /refunds<br/>timeout + retry, same key" --> gateway
     booking -. "HTTP/JSON  async (outbox dispatcher)<br/>POST /notifications (event_id)" .-> notification
 

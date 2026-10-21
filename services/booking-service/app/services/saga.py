@@ -219,7 +219,7 @@ class BookingSaga:
             try:
                 payment = self.payment.refund(payment["payment_id"], booking["failure_reason"] or "BOOKING_FAILED")
             except DownstreamRejected as rej:
-                if rej.code == "PAYMENT_NOT_REFUNDABLE":
+                if rej.code in ("PAYMENT_NOT_REFUNDABLE", "PAYMENT_NOT_FOUND"):
                     return "nothing to refund"
                 raise
         if payment["status"] != "REFUNDED":
@@ -236,7 +236,12 @@ class BookingSaga:
             if hold is None:
                 return "no seats were held"
             hold_id = hold["hold_id"]
-        released = self.inventory.release(hold_id, booking["failure_reason"] or "BOOKING_FAILED")
+        try:
+            released = self.inventory.release(hold_id, booking["failure_reason"] or "BOOKING_FAILED")
+        except DownstreamRejected as rej:
+            if rej.status == 404:
+                return f"inventory has no hold {hold_id}, nothing to release"
+            raise
         return f"released {released['seat_count']} seat(s) of hold {hold_id}"
 
     # ==== recovery (called by the background job) ==================================

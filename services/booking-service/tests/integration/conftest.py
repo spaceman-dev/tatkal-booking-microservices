@@ -1,12 +1,13 @@
+import uuid
+
 import httpx
 import pytest
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 
 from app.clients.base import ServiceClient
 from app.clients.inventory import InventoryClient
 from app.clients.payment import PaymentClient
 from app.config import get_settings
-from app.core.db import build_engine
 from app.repository.tables import metadata
 from app.services.saga import BookingSaga
 from tests.integration.fakes import FakeInventory, FakePayment
@@ -14,15 +15,23 @@ from tests.integration.fakes import FakeInventory, FakePayment
 
 @pytest.fixture(scope="session")
 def engine():
-    eng = build_engine(get_settings().database_url, pool_size=10, max_overflow=5)
+    """Real PostgreSQL, but a throwaway schema per test run, so tests never touch the
+    tables the running service uses (and its background jobs never see test data)."""
+    url = get_settings().database_url
+    schema = f"test_{uuid.uuid4().hex[:8]}"
+    admin = create_engine(url, pool_size=1, max_overflow=0)
     try:
-        with eng.connect() as conn:
-            conn.execute(text("SELECT 1"))
+        with admin.begin() as conn:
+            conn.execute(text(f'CREATE SCHEMA "{schema}"'))
     except Exception as exc:  # pragma: no cover
         pytest.skip(f"PostgreSQL for booking-service is not reachable: {exc}")
+    eng = create_engine(url, pool_size=10, max_overflow=5, connect_args={"options": f"-csearch_path={schema}"})
     metadata.create_all(eng)
     yield eng
     eng.dispose()
+    with admin.begin() as conn:
+        conn.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+    admin.dispose()
 
 
 @pytest.fixture

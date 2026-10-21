@@ -106,3 +106,19 @@ def test_saga_abandoned_after_payment_is_compensated_by_recovery(engine, saga, f
     assert payment.payments[payment_id]["status"] == "REFUNDED"
     assert inventory.holds[hold_id]["status"] == "RELEASED"
     assert saga.get(booking_id)["failure_reason"] == "SAGA_TIMEOUT"
+
+
+def test_release_of_a_hold_inventory_does_not_know_counts_as_done(engine, saga, fakes):
+    """If inventory answers 404 for the hold there is nothing to give back - the
+    compensation must finish instead of being retried forever."""
+    booking_id, unknown_hold = uuid.uuid4(), uuid.uuid4()
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO bookings (booking_id, status, train_no, journey_date, travel_class, passenger_count, "
+            "contact_mobile, payment_method, payer_ref, hold_id, failure_reason, compensation_steps, updated_at) "
+            "VALUES (:b, 'COMPENSATING', '12951', CURRENT_DATE + 30, '3A', 1, '9876543210', 'UPI', 'a@ok', :h, "
+            "'SAGA_TIMEOUT', 'RELEASE_SEATS', now() - interval '5 minutes')"),
+            {"b": booking_id, "h": unknown_hold})
+
+    assert saga.recover(booking_id) == "FAILED"
+    assert saga_steps(engine, booking_id)[-1] == ("RELEASE_SEATS", "COMPENSATE", "OK")

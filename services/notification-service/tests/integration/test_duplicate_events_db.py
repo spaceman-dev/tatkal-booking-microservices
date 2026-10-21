@@ -5,10 +5,9 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 
 from app.config import get_settings
-from app.core.db import build_engine
 from app.core.errors import AppError
 from app.repository.tables import metadata
 from app.services.notifications import NotificationService
@@ -22,15 +21,23 @@ DATA = {"pnr": "4521876390", "train_no": "12951", "journey_date": "2026-11-20", 
 
 @pytest.fixture(scope="module")
 def engine():
-    eng = build_engine(get_settings().database_url, pool_size=15, max_overflow=5)
+    """Real PostgreSQL, but a throwaway schema per test run, so tests never touch the
+    tables the running service uses."""
+    url = get_settings().database_url
+    schema = f"test_{uuid.uuid4().hex[:8]}"
+    admin = create_engine(url, pool_size=1, max_overflow=0)
     try:
-        with eng.connect() as conn:
-            conn.execute(text("SELECT 1"))
+        with admin.begin() as conn:
+            conn.execute(text(f'CREATE SCHEMA "{schema}"'))
     except Exception as exc:  # pragma: no cover
         pytest.skip(f"PostgreSQL for notification-service is not reachable: {exc}")
+    eng = create_engine(url, pool_size=15, max_overflow=5, connect_args={"options": f"-csearch_path={schema}"})
     metadata.create_all(eng)
     yield eng
     eng.dispose()
+    with admin.begin() as conn:
+        conn.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+    admin.dispose()
 
 
 def count(engine, event_id):

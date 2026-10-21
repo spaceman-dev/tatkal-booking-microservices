@@ -32,6 +32,8 @@ class FakeInventory:
             booking_id = request.url.params["booking_id"]
             return httpx.Response(200, json=[h for h in self.holds.values() if h["booking_id"] == booking_id])
         hold_id = path.split("/")[4]
+        if hold_id not in self.holds:
+            return _problem(404, "HOLD_NOT_FOUND")
         if path.endswith("/confirm"):
             self.calls.append("confirm")
             if self.confirm_failures > 0:
@@ -68,7 +70,9 @@ class FakePayment:
             return httpx.Response(200, json=[p for p in self.payments.values() if p["booking_id"] == booking_id])
         if path.endswith("/refund"):
             self.calls.append("refund")
-            payment = self.payments[path.split("/")[4]]
+            payment = self.payments.get(path.split("/")[4])
+            if payment is None:
+                return _problem(404, "PAYMENT_NOT_FOUND")
             payment["status"] = "REFUNDED"
             return httpx.Response(200, json=payment)
         return _problem(404, "NOT_FOUND")

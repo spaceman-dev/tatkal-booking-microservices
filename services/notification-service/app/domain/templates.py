@@ -1,5 +1,3 @@
-"""Message templates and the small formatting helpers they need."""
-
 EVENT_TYPES = ("BOOKING_CONFIRMED", "BOOKING_FAILED", "BOOKING_CANCELLED")
 
 

@@ -23,7 +23,7 @@ def test_confirmed_message_contains_pnr_and_amount():
     assert "Rs 5,790.00" in message
 
 
-def test_cancelled_message_states_the_tatkal_no_refund_rule():
+def test_cancelled_message_says_no_refund():
     message = render("BOOKING_CANCELLED", {"pnr": "1", "train_no": "12951", "journey_date": "2026-11-20"})
     assert "no refund" in message
 

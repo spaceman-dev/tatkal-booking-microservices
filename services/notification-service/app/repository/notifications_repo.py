@@ -11,8 +11,7 @@ CLAIMED = (notifications.c.channel, notifications.c.recipient, notifications.c.m
 
 
 def claim_new(conn: Connection, rows: list[dict], token: str, lease: timedelta) -> list[dict]:
-    """Inserts a PENDING row for every channel that has none yet and returns the ones
-    inserted. A channel another delivery already has is skipped, not an error."""
+    """Insert PENDING claims and return the ones we got (channels already taken are skipped)."""
     stmt = (pg_insert(notifications)
             .values([{**row, "status": "PENDING", "claim_token": token, "locked_until": func.now() + lease}
                      for row in rows])
@@ -22,7 +21,7 @@ def claim_new(conn: Connection, rows: list[dict], token: str, lease: timedelta) 
 
 
 def reclaim_expired(conn: Connection, event_id: str, token: str, lease: timedelta) -> list[dict]:
-    """Takes over PENDING rows whose lease ran out (the delivery that claimed them died)."""
+    """Take over PENDING rows whose lease ran out (the delivery holding them died)."""
     stmt = (update(notifications)
             .where(notifications.c.event_id == event_id, notifications.c.status == "PENDING",
                    notifications.c.locked_until < func.now())
@@ -39,7 +38,7 @@ def mark_sent(conn: Connection, event_id: str, channel: str, token: str) -> None
 
 
 def release(conn: Connection, event_id: str, channels: list[str], token: str) -> None:
-    """Gives back claims this delivery could not send; rows already SENT stay."""
+    """Delete our unsent claims so the retry can claim them again. SENT rows stay."""
     conn.execute(delete(notifications).where(notifications.c.event_id == event_id,
                                              notifications.c.channel.in_(channels),
                                              notifications.c.claim_token == token,

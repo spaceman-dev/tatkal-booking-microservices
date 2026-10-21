@@ -5,7 +5,7 @@ from contextvars import ContextVar
 
 CORRELATION_HEADER = "X-Correlation-ID"
 
-# Accept ids that callers send us only if they look sane; anything else is replaced.
+# keep a caller's id only if it looks sane, otherwise we make a new one
 _VALID_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="-")

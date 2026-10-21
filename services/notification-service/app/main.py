@@ -19,9 +19,8 @@ from app.services.provider import SimulatedProvider
 log = logging.getLogger(__name__)
 
 DESCRIPTION = """
-Turns booking events into SMS / e-mail messages through a simulated provider and
-keeps the delivery log. Duplicate events (same `event_id`) never produce a second
-message, which is what makes booking-service's at-least-once outbox safe.
+Sends SMS / e-mail for booking events (simulated provider) and keeps a delivery log.
+A repeated event (same `event_id`) is not sent again, so booking-service's outbox can retry safely.
 """
 
 

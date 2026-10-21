@@ -14,12 +14,11 @@ class Settings(BaseSettings):
     db_max_overflow: int = 10
     log_level: str = "INFO"
 
-    # Simulated SMS/e-mail provider (we never call a real one)
+    # fake SMS/e-mail provider, we never call a real one
     provider_failure_rate: float = 0.0
     provider_latency_ms: int = 30
 
-    # Duplicate deliveries: how long a claimed message stays reserved for the delivery
-    # sending it, and how long a duplicate waits for that delivery to finish
+    # claim lease, and how long a duplicate waits for the delivery that's already sending
     claim_lease_seconds: float = 30
     duplicate_wait_seconds: float = 2.0
 

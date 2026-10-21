@@ -19,19 +19,17 @@ def notification_service(request: Request) -> NotificationService:
     "/notifications",
     status_code=201,
     response_model=PublishOut,
-    summary="Deliver a booking event as SMS (and e-mail if given)",
+    summary="Send a booking event as SMS (and e-mail if given)",
     description=(
-        "Called by booking-service's outbox dispatcher, which may deliver the same event more than once. "
-        "The `event_id` makes this safe: each channel is sent at most once per event, and a repeat returns "
-        "200 with `duplicate: true` and sends nothing. A repeat that arrives while the first delivery is "
-        "still sending waits for it (up to 2 s)."
+        "Called by booking-service's outbox, which can deliver the same event more than once. "
+        "Each channel is sent at most once per `event_id`. A repeat gets 200 with `duplicate: true`. "
+        "If the first delivery is still sending, the repeat waits for it (up to 2 s)."
     ),
     responses={
-        200: {"description": "Duplicate event - nothing sent again"},
+        200: {"description": "Duplicate event, nothing sent again"},
         422: {"description": "Invalid event or missing template data"},
-        503: {"description": "Provider failed - channels already sent stay sent, the rest are released "
-                             "(PROVIDER_UNAVAILABLE); or another delivery is still sending the event "
-                             "(NOTIFICATION_IN_PROGRESS). Retry later either way."},
+        503: {"description": "PROVIDER_UNAVAILABLE (sent channels stay sent, the rest are released) or "
+                             "NOTIFICATION_IN_PROGRESS (another delivery is still sending). Retry later."},
     },
 )
 def publish(event: EventIn, service: NotificationService = Depends(notification_service)):

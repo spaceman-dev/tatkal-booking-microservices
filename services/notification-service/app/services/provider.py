@@ -1,5 +1,5 @@
-"""Stand-in for an SMS / e-mail provider. Nothing leaves the machine - a 'sent'
-message is a log line. The failure rate lets us show the outbox retrying."""
+"""Fake SMS / e-mail provider. Sending just logs the message, nothing really goes out.
+failure_rate makes it fail at random so we can watch the outbox retry."""
 import logging
 import random
 import time

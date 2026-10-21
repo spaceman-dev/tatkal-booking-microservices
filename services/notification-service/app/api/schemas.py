@@ -24,7 +24,7 @@ class EventIn(BaseModel):
                  "travel_class": "3A", "passenger_count": 2, "amount_paise": 579000},
     }]})
 
-    event_id: str = Field(min_length=8, max_length=64, description="Unique per event; used to drop duplicates")
+    event_id: str = Field(min_length=8, max_length=64, description="Unique per event, used to spot duplicates")
     event_type: EventType
     booking_id: UUID
     recipient: Recipient

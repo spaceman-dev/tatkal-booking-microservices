@@ -1,47 +1,42 @@
 # notification-service
 
-Turns booking events into SMS and e-mail messages and keeps the delivery log. Owner: N Abhishek Reddy.
+Owner: N Abhishek Reddy
 
-- **Port** 8004, **database** `notification_db` (user `notification_svc`), table `notifications`.
-- The provider is simulated: a "sent" message is a log line with the number masked (`98XXXXXX10`).
-  `PROVIDER_FAILURE_RATE` (or `PUT /api/v1/admin/provider`) makes it fail on purpose.
+Sends the SMS / e-mail for booking events and keeps a log of them (`notifications` table).
+Port 8004, DB `notification_db` (user `notification_svc`).
 
-## Called asynchronously, safe against duplicates
+The provider is fake: "sending" just logs the message with the number masked (`98XXXXXX10`).
+`PROVIDER_FAILURE_RATE` (or `PUT /api/v1/admin/provider`) makes it fail.
 
-booking-service never calls this service inside a booking request. It writes an event to its outbox in the
-same transaction as the booking change, and a background dispatcher delivers it here. The dispatcher may
-deliver an event more than once (for example if it crashes after we answered), so this service is an
-idempotent consumer:
+## Duplicates and failures
 
-- `UNIQUE (event_id, channel)`: each channel (SMS, e-mail) of an event is claimed by exactly one delivery
-  and marked SENT as soon as the provider accepts it. A repeat gets `200 {"duplicate": true}` and sends
-  nothing.
-- If the provider fails, only the channels not yet sent are released and 503 is returned, so the
-  dispatcher's retry sends just those - the SMS is never sent twice because the e-mail failed.
-- A repeat that arrives while another delivery is still sending waits for it (`DUPLICATE_WAIT_SECONDS`,
-  2 s), then answers `duplicate`, or `503 NOTIFICATION_IN_PROGRESS` so the dispatcher tries again later.
-- A claim belongs to its delivery for `CLAIM_LEASE_SECONDS`; one left behind by a delivery that crashed is
-  taken over by the next delivery of the event.
+booking-service's outbox dispatcher POSTs events here in the background, never inside a booking, so
+bookings work even when we're down. It can deliver the same event more than once:
 
-If this service is down, bookings still complete and the messages go out when it comes back.
+- `UNIQUE (event_id, channel)`: one delivery owns each channel and marks it SENT right after sending.
+  A repeat gets `200 {"duplicate": true}` and sends nothing.
+- If the provider fails we release only the unsent channels and return 503, so the retry won't resend the SMS.
+- A repeat that arrives mid-send waits up to `DUPLICATE_WAIT_SECONDS` (2 s), then gets duplicate, or
+  `503 NOTIFICATION_IN_PROGRESS` and the dispatcher retries later.
+- Claims expire after `CLAIM_LEASE_SECONDS` (30 s), so one left by a crashed delivery gets taken over.
 
 ## API
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/api/v1/notifications` | 201 sent, 200 duplicate, 422 bad event, 503 provider down or event still being sent |
+| POST | `/api/v1/notifications` | 201 sent, 200 duplicate, 422 bad event, 503 provider down or still sending |
 | GET | `/api/v1/notifications?booking_id=` | messages for a booking |
-| PUT | `/api/v1/admin/provider` | dev only: failure rate |
-| GET | `/health` | includes a database check |
+| PUT | `/api/v1/admin/provider` | dev only, sets the failure rate |
+| GET | `/health` | includes a DB check |
 
-Spec: [`docs/openapi/notification-service.yaml`](../../docs/openapi/notification-service.yaml).
+Spec: [`docs/openapi/notification-service.yaml`](../../docs/openapi/notification-service.yaml)
 
-## Run and test
+## Run / test
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 python -m app
-python -m pytest -v
+python -m pytest -v   # integration tests need the postgres container up
 ```

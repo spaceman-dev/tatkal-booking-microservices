@@ -20,8 +20,8 @@ class NotificationService:
         self.engine = engine
         self.provider = provider
         self.lease = timedelta(seconds=lease_seconds)
-        # How long a duplicate waits for the delivery that is already sending the event.
-        # Kept below booking-service's 3 s timeout for this call.
+        # how long a duplicate waits for the delivery already sending the event.
+        # keep it under booking-service's 3s timeout for this call
         self.wait_seconds = wait_seconds
         self.poll_seconds = poll_seconds
 
@@ -36,8 +36,8 @@ class NotificationService:
         deadline = time.monotonic() + self.wait_seconds
         sent_now: list[str] = []
         while True:
-            # 1. Claim each channel nobody has yet, plus claims left by a delivery that died.
-            #    UNIQUE(event_id, channel) gives every channel exactly one owner.
+            # claim the channels nobody has yet, plus dead claims (lease ran out).
+            # UNIQUE(event_id, channel) so only one delivery can own a channel
             token = uuid.uuid4().hex
             rows = [{"notification_id": uuid.uuid4(), "event_id": event_id, "event_type": event_type,
                      "booking_id": booking_id, "channel": channel, "recipient": recipient, "message": message}
@@ -46,14 +46,14 @@ class NotificationService:
                 claimed = repo.claim_new(conn, rows, token, self.lease)
                 claimed += repo.reclaim_expired(conn, event_id, token, self.lease)
 
-            # 2. Send what we claimed, recording each channel as soon as it has gone out.
             if claimed:
                 sent_now += self._send(event_id, booking_id, claimed, token)
 
-            # 3. Done only when every channel is SENT - by us or by an earlier delivery.
+            # done once every channel is SENT, by us or by an earlier delivery
             deliveries = self._deliveries(event_id)
             if set(recipients) <= {d["channel"] for d in deliveries if d["status"] == "SENT"}:
                 break
+            # another delivery is still sending. keep polling till the deadline, then 503 so the outbox retries
             if time.monotonic() >= deadline:
                 log.info("event is still being sent by another delivery", extra={"event_id": event_id})
                 raise AppError(503, "NOTIFICATION_IN_PROGRESS", "Event is still being delivered",
@@ -74,7 +74,7 @@ class NotificationService:
             try:
                 self.provider.send(row["channel"], row["recipient"], row["message"])
             except ProviderUnavailable as exc:
-                # Give back only what was not sent, so the retry sends just that.
+                # release only what we haven't sent, so the retry sends just that
                 unsent = [r["channel"] for r in claimed if r["channel"] not in sent]
                 with self.engine.begin() as conn:
                     repo.release(conn, event_id, unsent, token)
@@ -83,6 +83,7 @@ class NotificationService:
                                    "released": unsent})
                 raise AppError(503, "PROVIDER_UNAVAILABLE", "Message provider unavailable",
                                f"{exc}. Channels already sent stay sent; retry the event later.") from exc
+            # commit SENT per channel, so if the next channel fails this one isn't sent again
             with self.engine.begin() as conn:
                 repo.mark_sent(conn, event_id, row["channel"], token)
             sent.append(row["channel"])

@@ -1,0 +1,93 @@
+# Databases only (Assignment 1).
+#
+# One PostgreSQL container per service = physical database-per-service.
+# Each service gets its own database name, user and password, and no service
+# is given the credentials of another service's database.
+#
+# Start:   docker compose -f docker-compose.db.yml up -d
+# Stop:    docker compose -f docker-compose.db.yml down        (add -v to wipe data)
+#
+# The application services themselves run on the host for Assignment 1
+# (see README). In Assignment 2 they get their own containers.
+
+name: tatkal-db
+
+x-pg-common: &pg-common
+  image: postgres:16-alpine
+  restart: unless-stopped
+  command: ["postgres", "-c", "max_connections=200", "-c", "log_min_messages=warning"]
+
+services:
+  booking-db:
+    <<: *pg-common
+    container_name: tatkal-booking-db
+    environment:
+      POSTGRES_DB: booking_db
+      POSTGRES_USER: booking_svc
+      POSTGRES_PASSWORD: booking_dev_pw
+    ports:
+      - "5441:5432"
+    volumes:
+      - booking-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U booking_svc -d booking_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  inventory-db:
+    <<: *pg-common
+    container_name: tatkal-inventory-db
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: inventory_svc
+      POSTGRES_PASSWORD: inventory_dev_pw
+    ports:
+      - "5442:5432"
+    volumes:
+      - inventory-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory_svc -d inventory_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  payment-db:
+    <<: *pg-common
+    container_name: tatkal-payment-db
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_svc
+      POSTGRES_PASSWORD: payment_dev_pw
+    ports:
+      - "5443:5432"
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment_svc -d payment_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  notification-db:
+    <<: *pg-common
+    container_name: tatkal-notification-db
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: notification_svc
+      POSTGRES_PASSWORD: notification_dev_pw
+    ports:
+      - "5444:5432"
+    volumes:
+      - notification-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification_svc -d notification_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  booking-db-data:
+  inventory-db-data:
+  payment-db-data:
+  notification-db-data:

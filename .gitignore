@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Local configuration (copied from .env.example by scripts/stack.py setup)
+.env
+
+# Runtime output of scripts/stack.py
+logs/
+.run/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

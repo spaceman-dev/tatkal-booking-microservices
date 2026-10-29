@@ -50,6 +50,7 @@ kubectl -n tatkal get pods -l app=booking-service -w
 ```
 
 The ReplicaSet replaces a deleted pod within seconds, and the other replicas keep answering meanwhile.
+`bash deploy/k8s/demo-scaling.sh` does both steps with the watcher running and counts failed requests.
 
 ## Rolling update and rollback
 
@@ -65,7 +66,8 @@ kubectl -n tatkal rollout undo deployment/booking-service
 `/health` reports the version, so `watch.sh` shows the pods switching from 1.0.0 to 1.1.0 and back. With
 `maxUnavailable: 0` and `maxSurge: 1` a new pod has to be ready before an old one is stopped. A version
 that cannot start (try a tag that does not exist) stays stuck at the first new pod while the old ones keep
-serving, until `rollout undo`.
+serving, until `rollout undo`. `bash deploy/k8s/demo-rollout.sh` runs the whole sequence (update, rollback,
+broken release, rollback) with the watcher and counts failed requests.
 
 ## Choices in the manifests
 

@@ -75,6 +75,9 @@ docker compose up -d                             # back, with the same bookings
 docker compose down -v                           # also delete the four databases
 ```
 
+`bash scripts/restart_check.sh` does the down/up round trip and checks that the newest booking is still
+there and the end-to-end tests still pass.
+
 How it is put together:
 
 - **One image per service** (`services/<name>/Dockerfile`): `python:3.12-slim`, dependencies in their own
@@ -268,7 +271,7 @@ services/
   notification-service/      same layout
   mock-bank-gateway/         small stand-alone mock, no database
 deploy/k8s/                  Kubernetes manifests for Minikube and the deploy / port-forward / watch scripts
-scripts/                     stack.py, challenge scripts, demo_flow.sh, trace.py, export_openapi.py
+scripts/                     stack.py, challenge scripts, demo_flow.sh, trace.py, restart_check.sh, export_openapi.py
 tests/e2e/                   end-to-end test of the main transaction
 docs/                        both reports, diagrams (Mermaid source + PNG/SVG), OpenAPI specs, business rules
 evidence/                    one folder per challenge (Assignment 1) and evidence/deployment (Assignment 2)

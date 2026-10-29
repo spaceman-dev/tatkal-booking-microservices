@@ -3,6 +3,8 @@
 Recorded on 29 Oct 2026 on one MacBook: Colima as the Docker engine (Docker 29.2, Compose 5.0.2 with
 BuildKit) and Minikube 1.39 running Kubernetes 1.37. Each `.txt` file starts with the command, the time
 (IST and UTC) and the commit it ran at. A screenshot with the same name is the terminal of that run.
+We ran the commands through `record`, a small shell function that prints those three lines and saves the
+output with `tee`; that is the `record ...` line at the top of each screenshot.
 Database passwords are masked (`***`) everywhere; the real ones are only in our local `.env`.
 
 | Folder | Part of the brief | What it shows |

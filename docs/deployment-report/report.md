@@ -114,9 +114,9 @@ n/30)` thirty times and then `Application startup failed`.
 
 The image was fine, the configuration was wrong. `localhost:5442` means "this machine", and inside a
 container this machine is the container. Port 5442 exists only on the host, where Docker publishes the
-database. To confirm it we changed only the host in the URL (`inventory-db:5432`) and attached the
-database's network: the same image with the same file was healthy within 8 seconds, with no failed
-attempt.
+database. To confirm it we changed only the address in the URL (`localhost:5442` to `inventory-db:5432`)
+and attached the database's network: the same image with the same file was healthy within 8 seconds, with
+no failed attempt.
 
 **Solution.** (1) In `docker-compose.yml` every `DATABASE_URL` uses the database's service name and port
 5432, and each service shares a private network with its database. The other services' URLs work the same
@@ -166,12 +166,12 @@ someone's machine.
 - booking-service runs 2 replicas with `maxSurge: 1, maxUnavailable: 0`. inventory-service and the mock
   bank stay at one replica, because the fault switches used in the demo are kept in memory.
 
-![Figure 2 - The Minikube deployment (namespace tatkal). Every service follows the pattern shown for booking-service: a Service, a Deployment and a StatefulSet for its database. The tests reach the cluster through kubectl port-forward on the same local ports as with Compose.](../diagrams/deployment-k8s.svg)
+![Figure 2 - The Minikube deployment (namespace tatkal). Each service has a Service and a Deployment, and each database a StatefulSet with a headless Service and a volume, as shown for booking-service. The tests reach the cluster through kubectl port-forward on the same local ports as with Compose.](../diagrams/deployment-k8s.svg)
 
-A clean deploy takes 41 s once the images are in Minikube (3 min 36 s the first time, mostly copying the
-images). The main workflow runs through the Kubernetes Services: with `port-forward.sh` running, the same
-7 end-to-end tests pass, reading the logs with `kubectl logs`, and one booking's correlation id appears in
-the logs of all five Deployments.
+A clean deploy took 41 s. The very first one took 3 min 36 s, almost all of it waiting for the pods while
+Minikube downloaded the postgres image. The main workflow runs through the Kubernetes Services: with
+`port-forward.sh` running, the same 7 end-to-end tests pass, reading the logs with `kubectl logs`, and one
+booking's correlation id appears in the logs of all five Deployments.
 
 ## 4.2 Self-healing and scaling
 

@@ -10,14 +10,14 @@ the ones Compose builds, copied into Minikube with `minikube image load`.
 
 | File | What it shows |
 |---|---|
-| [`deploy.txt`](deploy.txt), [`screenshots/deploy.png`](screenshots/deploy.png) | `bash deploy/k8s/deploy.sh` after deleting the namespace: the images, the `db-passwords` Secret made from `.env`, the manifests, every StatefulSet and Deployment rolled out, and all 10 pods `Running` with 0 restarts. 41 s, because the images were already in Minikube |
+| [`deploy.txt`](deploy.txt), [`screenshots/deploy.png`](screenshots/deploy.png) | `bash deploy/k8s/deploy.sh` after deleting the namespace: the images, the `db-passwords` Secret made from `.env`, the manifests, every StatefulSet and Deployment rolled out, and all 10 pods `Running` with 0 restarts, after 41 s |
 | [`resources.txt`](resources.txt), [`screenshots/resources.png`](screenshots/resources.png) | Deployments and StatefulSets with their images, the Services (ClusterIP for the services, headless for the databases), a 1 Gi volume per database, a ConfigMap per service and the keys (not the values) of the Secret |
 | [`e2e.txt`](e2e.txt), [`screenshots/e2e.png`](screenshots/e2e.png) | the same 7 end-to-end tests, through `deploy/k8s/port-forward.sh`, with `LOG_SOURCE=k8s` so the log checks read `kubectl logs`. 7 passed |
 | [`demo_flow.txt`](demo_flow.txt) | `scripts/demo_flow.sh` against the cluster: booking, the retry with the same key, the saga log, notifications, the forced step-3 failure and its compensation, sold out |
 | [`trace.txt`](trace.txt), [`screenshots/trace.png`](screenshots/trace.png) | one booking followed by its correlation id across booking, inventory, payment, the bank and notification, read from the pods' logs |
 | [`scaling.txt`](scaling.txt), [`screenshots/scaling.png`](screenshots/scaling.png), [`scaling-watch.txt`](scaling-watch.txt) | `deploy/k8s/demo-scaling.sh`: one of the two booking pods deleted (a new one is running 3 s later), then `kubectl scale --replicas=3`. A pod inside the cluster called booking-service twice a second the whole time: 80 requests, 0 failed, answered by 4 different pods |
 | [`rollout.txt`](rollout.txt), [`screenshots/rollout.png`](screenshots/rollout.png), [`rollout-watch.txt`](rollout-watch.txt) | `deploy/k8s/demo-rollout.sh`: rolling update 1.0 to 1.1, `kubectl rollout undo`, then a broken release (there is no image `9.9`) that never gets ready while the 1.0 pods keep serving, and `rollout undo` again. 159 requests, 0 failed; the watch file shows the version changing |
-| [`first-run/`](first-run) | our first deploy (3 min 36 s, most of it copying the images into Minikube) and the first self-healing and scaling run, saved with `tee` between 09:22 and 09:27 IST |
+| [`first-run/`](first-run) | our first deploy and the first self-healing and scaling run, saved with `tee` between 09:22 and 09:27 IST. The deploy took 3 min 36 s: the pods were 3 min old when the last one became ready, because Minikube had to download `postgres:16-alpine` the first time |
 
 The watch files are written by [`deploy/k8s/watch.sh`](../../../deploy/k8s/watch.sh). Their times are UTC
 (the pod's clock), the recordings show IST and UTC.

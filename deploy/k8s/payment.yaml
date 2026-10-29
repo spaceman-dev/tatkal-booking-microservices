@@ -82,6 +82,7 @@ spec:
       labels: {app: payment-service, tier: service}
     spec:
       enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
       initContainers:
         # same idea as depends_on: service_healthy in docker-compose.yml
         - name: wait-for-db
@@ -101,6 +102,11 @@ spec:
                 secretKeyRef: {name: db-passwords, key: PAYMENT_DB_PASSWORD}
             - name: DATABASE_URL
               value: postgresql+psycopg://payment_svc:$(DB_PASSWORD)@payment-db:5432/payment_db
+          lifecycle:
+            # keep serving for a few seconds after SIGTERM is due: the Service keeps
+            # sending traffic until the pod is removed from its endpoints
+            preStop:
+              sleep: {seconds: 5}
           startupProbe:
             httpGet: {path: /health/live, port: http}
             periodSeconds: 2

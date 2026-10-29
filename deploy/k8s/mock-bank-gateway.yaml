@@ -25,6 +25,7 @@ spec:
       labels: {app: mock-bank-gateway, tier: service}
     spec:
       enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
       containers:
         - name: mock-bank-gateway
           image: tatkal/mock-bank-gateway:1.0
@@ -33,6 +34,11 @@ spec:
             - {name: http, containerPort: 8099}
           envFrom:
             - configMapRef: {name: mock-bank-gateway-config}
+          lifecycle:
+            # keep serving for a few seconds after SIGTERM is due: the Service keeps
+            # sending traffic until the pod is removed from its endpoints
+            preStop:
+              sleep: {seconds: 5}
           startupProbe:
             httpGet: {path: /health, port: http}
             periodSeconds: 2

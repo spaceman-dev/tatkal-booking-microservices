@@ -99,7 +99,7 @@ Every service is independently runnable from its own folder with its own depende
 cd services/inventory-service
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # app + pytest
 cp .env.example .env               # Windows: copy .env.example .env
 python -m app                      # starts on the PORT from .env
 ```

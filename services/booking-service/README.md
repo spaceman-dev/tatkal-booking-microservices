@@ -42,7 +42,7 @@ http://localhost:8001/docs.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # app + pytest
 cp .env.example .env
 python -m app          # needs booking_db, plus the other services to actually book
 python -m pytest -v    # integration tests skip if booking_db is down

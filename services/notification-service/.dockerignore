@@ -1,0 +1,11 @@
+# keep the build context small and never send local config into an image
+.env
+.env.*
+.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+README.md
+Dockerfile
+.dockerignore

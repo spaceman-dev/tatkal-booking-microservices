@@ -52,7 +52,7 @@ Spec: [`docs/openapi/inventory-service.yaml`](../../docs/openapi/inventory-servi
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # app + pytest
 cp .env.example .env
 python -m app
 python -m pytest -v    # integration tests (20 threads vs 5 seats) need the DB container

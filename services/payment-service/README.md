@@ -56,7 +56,7 @@ Spec: [`docs/openapi/payment-service.yaml`](../../docs/openapi/payment-service.y
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # app + pytest
 cp .env.example .env
 python -m app
 python -m pytest -v

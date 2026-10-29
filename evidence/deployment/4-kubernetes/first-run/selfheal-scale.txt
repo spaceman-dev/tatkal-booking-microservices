@@ -1,0 +1,32 @@
+== 09:26:53
+$ kubectl -n tatkal get pods -l app=booking-service
+NAME                               READY   STATUS    RESTARTS   AGE
+booking-service-844cb7b96c-6blzj   1/1     Running   0          4m17s
+booking-service-844cb7b96c-qjzp9   1/1     Running   0          4m17s
+
+== 09:26:53
+$ kubectl -n tatkal delete pod booking-service-844cb7b96c-6blzj
+pod "booking-service-844cb7b96c-6blzj" deleted from tatkal namespace
+$ kubectl -n tatkal get pods -l app=booking-service
+NAME                               READY   STATUS    RESTARTS   AGE
+booking-service-844cb7b96c-h5fgp   0/1     Running   0          3s
+booking-service-844cb7b96c-qjzp9   1/1     Running   0          4m20s
+
+== 09:27:08
+$ kubectl -n tatkal get pods -l app=booking-service
+NAME                               READY   STATUS    RESTARTS   AGE
+booking-service-844cb7b96c-h5fgp   1/1     Running   0          15s
+booking-service-844cb7b96c-qjzp9   1/1     Running   0          4m32s
+
+== 09:27:08
+$ kubectl -n tatkal scale deployment booking-service --replicas=3
+deployment.apps/booking-service scaled
+Waiting for deployment "booking-service" rollout to finish: 2 of 3 updated replicas are available...
+deployment "booking-service" successfully rolled out
+$ kubectl -n tatkal get deployment booking-service
+NAME              READY   UP-TO-DATE   AVAILABLE   AGE
+booking-service   3/3     3            3           4m36s
+NAME                               READY   STATUS    RESTARTS   AGE
+booking-service-844cb7b96c-h5fgp   1/1     Running   0          19s
+booking-service-844cb7b96c-l7xz7   1/1     Running   0          3s
+booking-service-844cb7b96c-qjzp9   1/1     Running   0          4m36s

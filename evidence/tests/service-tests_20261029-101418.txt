@@ -1,0 +1,205 @@
+$ python scripts/stack.py test
+# 2026-10-29 10:14:18 IST (UTC 04:44:18), git b118ea2
+
+
+==================== mock-bank-gateway ====================
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.7.0 -- /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/mock-bank-gateway/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/mock-bank-gateway
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1
+collecting ... collected 8 items
+
+tests/test_gateway.py::test_charge_is_captured_and_replayed_for_same_key PASSED [ 12%]
+tests/test_gateway.py::test_same_key_with_different_payload_is_rejected PASSED [ 25%]
+tests/test_gateway.py::test_missing_key_is_a_bad_request PASSED          [ 37%]
+tests/test_gateway.py::test_decline_payer_is_declined PASSED             [ 50%]
+tests/test_gateway.py::test_down_mode_processes_nothing PASSED           [ 62%]
+tests/test_gateway.py::test_partial_outage_can_hit_refunds_only PASSED   [ 75%]
+tests/test_gateway.py::test_refund_only_once_and_never_more_than_charged PASSED [ 87%]
+tests/test_gateway.py::test_parallel_requests_with_one_key_create_one_charge PASSED [100%]
+
+============================== 8 passed in 0.31s ===============================
+
+==================== inventory-service ====================
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.7.0 -- /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/inventory-service/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/inventory-service
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1
+collecting ... collected 27 items
+
+tests/integration/test_br1_concurrent_holds.py::test_br1_atomic_hold_never_oversells PASSED [  3%]
+tests/integration/test_br1_concurrent_holds.py::test_naive_check_then_update_oversells PASSED [  7%]
+tests/integration/test_hold_retry_and_expiry.py::test_overlapping_retry_gets_same_hold PASSED [ 11%]
+tests/integration/test_hold_retry_and_expiry.py::test_expiry_releases_only_stale_held_holds PASSED [ 14%]
+tests/unit/test_br1_allocation.py::test_br1_allocation_is_all_or_nothing[5-1-True] PASSED [ 18%]
+tests/unit/test_br1_allocation.py::test_br1_allocation_is_all_or_nothing[5-5-True] PASSED [ 22%]
+tests/unit/test_br1_allocation.py::test_br1_allocation_is_all_or_nothing[5-6-False] PASSED [ 25%]
+tests/unit/test_br1_allocation.py::test_br1_allocation_is_all_or_nothing[0-1-False] PASSED [ 29%]
+tests/unit/test_br1_allocation.py::test_br1_allocation_is_all_or_nothing[3-0-False] PASSED [ 33%]
+tests/unit/test_br1_allocation.py::test_br1_rejects_seat_counts_outside_limits[0] PASSED [ 37%]
+tests/unit/test_br1_allocation.py::test_br1_rejects_seat_counts_outside_limits[7] PASSED [ 40%]
+tests/unit/test_br1_allocation.py::test_br1_rejects_seat_counts_outside_limits[-1] PASSED [ 44%]
+tests/unit/test_br1_allocation.py::test_br1_accepts_seat_counts_within_limits[1] PASSED [ 48%]
+tests/unit/test_br1_allocation.py::test_br1_accepts_seat_counts_within_limits[4] PASSED [ 51%]
+tests/unit/test_br1_allocation.py::test_br1_accepts_seat_counts_within_limits[6] PASSED [ 55%]
+tests/unit/test_br1_allocation.py::test_hold_state_machine PASSED        [ 59%]
+tests/unit/test_br1_allocation.py::test_sql_guards_are_derived_from_the_state_machine PASSED [ 62%]
+tests/unit/test_br3_fares.py::test_br3_charge_is_raised_to_the_class_minimum PASSED [ 66%]
+tests/unit/test_br3_fares.py::test_br3_charge_is_percentage_when_inside_the_band PASSED [ 70%]
+tests/unit/test_br3_fares.py::test_br3_charge_is_capped_at_the_class_maximum PASSED [ 74%]
+tests/unit/test_br3_fares.py::test_br3_second_sitting_uses_ten_percent PASSED [ 77%]
+tests/unit/test_br3_fares.py::test_br3_percentage_rounds_half_up_in_paise PASSED [ 81%]
+tests/unit/test_br3_fares.py::test_br3_quote_multiplies_per_seat_fare_by_seat_count PASSED [ 85%]
+tests/unit/test_br3_fares.py::test_br3_rejects_classes_without_tatkal[1A] PASSED [ 88%]
+tests/unit/test_br3_fares.py::test_br3_rejects_classes_without_tatkal[3E] PASSED [ 92%]
+tests/unit/test_br3_fares.py::test_br3_rejects_classes_without_tatkal[XX] PASSED [ 96%]
+tests/unit/test_br3_fares.py::test_br3_rejects_non_positive_base_fare PASSED [100%]
+
+============================== 27 passed in 1.30s ==============================
+
+==================== payment-service ====================
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.7.0 -- /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/payment-service/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/payment-service
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1
+collecting ... collected 41 items
+
+tests/integration/test_idempotent_payments_db.py::test_parallel_requests_with_the_same_key_charge_once PASSED [  2%]
+tests/integration/test_idempotent_payments_db.py::test_same_booking_different_keys_charged_once PASSED [  4%]
+tests/integration/test_idempotent_payments_db.py::test_expired_owner_cannot_overwrite_new_owner PASSED [  7%]
+tests/integration/test_idempotent_payments_db.py::test_non_final_error_is_not_stored PASSED [  9%]
+tests/integration/test_payment_fencing_db.py::test_void_before_charge_blocks_late_charge PASSED [ 12%]
+tests/integration/test_payment_fencing_db.py::test_void_returns_an_existing_payment_unchanged PASSED [ 14%]
+tests/integration/test_payment_fencing_db.py::test_refund_during_backoff_gets_in_progress PASSED [ 17%]
+tests/integration/test_payment_fencing_db.py::test_dead_pending_charge_is_reconciled PASSED [ 19%]
+tests/integration/test_payment_fencing_db.py::test_charge_stops_retrying_once_the_payment_was_closed PASSED [ 21%]
+tests/integration/test_payment_fencing_db.py::test_late_capture_after_void_is_refunded PASSED [ 24%]
+tests/unit/test_br4_payment_rules.py::test_br4_refund_is_always_the_full_captured_amount PASSED [ 26%]
+tests/unit/test_br4_payment_rules.py::test_br4_second_refund_is_refused PASSED [ 29%]
+tests/unit/test_br4_payment_rules.py::test_br4_only_captured_payments_can_be_refunded[PENDING] PASSED [ 31%]
+tests/unit/test_br4_payment_rules.py::test_br4_only_captured_payments_can_be_refunded[DECLINED] PASSED [ 34%]
+tests/unit/test_br4_payment_rules.py::test_br4_only_captured_payments_can_be_refunded[FAILED] PASSED [ 36%]
+tests/unit/test_br4_payment_rules.py::test_br4_only_captured_payments_can_be_refunded[VOIDED] PASSED [ 39%]
+tests/unit/test_br4_payment_rules.py::test_br4_late_capture_on_voided_is_refunded PASSED [ 41%]
+tests/unit/test_br4_payment_rules.py::test_br4_refunded_is_terminal PASSED [ 43%]
+tests/unit/test_br4_payment_rules.py::test_br4_only_pending_can_become_captured PASSED [ 46%]
+tests/unit/test_br4_payment_rules.py::test_br4_refunded_from_captured_or_voided PASSED [ 48%]
+tests/unit/test_br4_payment_rules.py::test_charge_amount_limits[0] PASSED [ 51%]
+tests/unit/test_br4_payment_rules.py::test_charge_amount_limits[-100] PASSED [ 53%]
+tests/unit/test_br4_payment_rules.py::test_charge_amount_limits[50000001] PASSED [ 56%]
+tests/unit/test_gateway_client.py::test_timeouts_are_retried_with_the_same_idempotency_key PASSED [ 58%]
+tests/unit/test_gateway_client.py::test_gateway_down_gives_unavailable_not_unknown PASSED [ 60%]
+tests/unit/test_gateway_client.py::test_timeout_then_503s_is_outcome_unknown PASSED [ 63%]
+tests/unit/test_gateway_client.py::test_connection_refused_is_unavailable PASSED [ 65%]
+tests/unit/test_gateway_client.py::test_client_errors_are_not_retried PASSED [ 68%]
+tests/unit/test_gateway_client.py::test_declined_charge_is_reported_as_declined PASSED [ 70%]
+tests/unit/test_gateway_client.py::test_no_retry_once_payment_is_closed PASSED [ 73%]
+tests/unit/test_gateway_client.py::test_backoff_is_exponential_with_full_jitter_and_a_cap[1-0.2] PASSED [ 75%]
+tests/unit/test_gateway_client.py::test_backoff_is_exponential_with_full_jitter_and_a_cap[2-0.4] PASSED [ 78%]
+tests/unit/test_gateway_client.py::test_backoff_is_exponential_with_full_jitter_and_a_cap[3-0.8] PASSED [ 80%]
+tests/unit/test_gateway_client.py::test_backoff_is_exponential_with_full_jitter_and_a_cap[6-2.0] PASSED [ 82%]
+tests/unit/test_gateway_client.py::test_backoff_is_exponential_with_full_jitter_and_a_cap[10-2.0] PASSED [ 85%]
+tests/unit/test_idempotency_keys.py::test_fingerprint_ignores_key_order PASSED [ 87%]
+tests/unit/test_idempotency_keys.py::test_fingerprint_changes_when_any_value_changes PASSED [ 90%]
+tests/unit/test_idempotency_keys.py::test_bad_keys_are_rejected_with_400[None-IDEMPOTENCY_KEY_REQUIRED] PASSED [ 92%]
+tests/unit/test_idempotency_keys.py::test_bad_keys_are_rejected_with_400[short-IDEMPOTENCY_KEY_INVALID] PASSED [ 95%]
+tests/unit/test_idempotency_keys.py::test_bad_keys_are_rejected_with_400[has spaces in it-IDEMPOTENCY_KEY_INVALID] PASSED [ 97%]
+tests/unit/test_idempotency_keys.py::test_uuid_keys_are_accepted PASSED  [100%]
+
+============================== 41 passed in 1.07s ==============================
+
+==================== notification-service ====================
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.7.0 -- /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/notification-service/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/notification-service
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1
+collecting ... collected 15 items
+
+tests/integration/test_duplicate_events_db.py::test_concurrent_duplicates_send_once PASSED [  6%]
+tests/integration/test_duplicate_events_db.py::test_provider_failure_then_retry PASSED [ 13%]
+tests/integration/test_duplicate_events_db.py::test_partial_failure_retry_sends_only_missing PASSED [ 20%]
+tests/integration/test_duplicate_events_db.py::test_in_progress_elsewhere_returns_503 PASSED [ 26%]
+tests/integration/test_duplicate_events_db.py::test_dead_claim_is_taken_over PASSED [ 33%]
+tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[579000-5,790.00] PASSED [ 40%]
+tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[12345678-1,23,456.78] PASSED [ 46%]
+tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[100-1.00] PASSED [ 53%]
+tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[99-0.99] PASSED [ 60%]
+tests/unit/test_templates.py::test_rupees_use_indian_digit_grouping[1000000000-1,00,00,000.00] PASSED [ 66%]
+tests/unit/test_templates.py::test_confirmed_message_contains_pnr_and_amount PASSED [ 73%]
+tests/unit/test_templates.py::test_cancelled_message_says_no_refund PASSED [ 80%]
+tests/unit/test_templates.py::test_missing_template_data_is_rejected PASSED [ 86%]
+tests/unit/test_templates.py::test_unknown_event_type_is_rejected PASSED [ 93%]
+tests/unit/test_templates.py::test_recipients_are_masked_in_logs PASSED  [100%]
+
+============================== 15 passed in 0.94s ==============================
+
+==================== booking-service ====================
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.7.0 -- /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/booking-service/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/services/booking-service
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1
+collecting ... collected 42 items
+
+tests/integration/test_create_tables_db.py::test_replicas_creating_tables_at_the_same_time_all_start PASSED [  2%]
+tests/integration/test_idempotent_bookings_db.py::test_key_takeover_returns_existing_booking PASSED [  4%]
+tests/integration/test_idempotent_bookings_db.py::test_retry_of_a_failed_booking_gets_the_same_failure PASSED [  7%]
+tests/integration/test_idempotent_bookings_db.py::test_retry_while_saga_running_gets_409 PASSED [  9%]
+tests/integration/test_idempotent_bookings_db.py::test_two_requests_racing_with_one_key_start_one_saga PASSED [ 11%]
+tests/integration/test_saga_db.py::test_happy_path_confirms_and_queues_notification PASSED [ 14%]
+tests/integration/test_saga_db.py::test_br6_failure_at_step_3_refunds_then_releases PASSED [ 16%]
+tests/integration/test_saga_db.py::test_failed_compensation_is_finished_by_recovery PASSED [ 19%]
+tests/integration/test_saga_db.py::test_recovery_undoes_saga_stuck_after_payment PASSED [ 21%]
+tests/integration/test_saga_db.py::test_release_of_unknown_hold_counts_as_done PASSED [ 23%]
+tests/integration/test_saga_db.py::test_void_blocks_late_charge PASSED   [ 26%]
+tests/integration/test_saga_db.py::test_refund_of_in_flight_charge_finished_later PASSED [ 28%]
+tests/unit/test_br2_passengers.py::test_br2_accepts_one_to_four_passengers_aged_five_or_more[ages0] PASSED [ 30%]
+tests/unit/test_br2_passengers.py::test_br2_accepts_one_to_four_passengers_aged_five_or_more[ages1] PASSED [ 33%]
+tests/unit/test_br2_passengers.py::test_br2_accepts_one_to_four_passengers_aged_five_or_more[ages2] PASSED [ 35%]
+tests/unit/test_br2_passengers.py::test_br2_accepts_one_to_four_passengers_aged_five_or_more[ages3] PASSED [ 38%]
+tests/unit/test_br2_passengers.py::test_br2_rejects_more_than_four_passengers PASSED [ 40%]
+tests/unit/test_br2_passengers.py::test_br2_rejects_empty_passenger_list PASSED [ 42%]
+tests/unit/test_br2_passengers.py::test_br2_rejects_children_under_five PASSED [ 45%]
+tests/unit/test_br5_state_machine.py::test_br5_happy_path_is_allowed PASSED [ 47%]
+tests/unit/test_br5_state_machine.py::test_br5_any_in_flight_state_can_start_compensating[PENDING] PASSED [ 50%]
+tests/unit/test_br5_state_machine.py::test_br5_any_in_flight_state_can_start_compensating[SEATS_HELD] PASSED [ 52%]
+tests/unit/test_br5_state_machine.py::test_br5_any_in_flight_state_can_start_compensating[PAYMENT_DONE] PASSED [ 54%]
+tests/unit/test_br5_state_machine.py::test_br5_illegal_transitions_are_rejected[FAILED-CONFIRMED] PASSED [ 57%]
+tests/unit/test_br5_state_machine.py::test_br5_illegal_transitions_are_rejected[CANCELLED-CONFIRMED] PASSED [ 59%]
+tests/unit/test_br5_state_machine.py::test_br5_illegal_transitions_are_rejected[CONFIRMED-PENDING] PASSED [ 61%]
+tests/unit/test_br5_state_machine.py::test_br5_illegal_transitions_are_rejected[PENDING-CONFIRMED] PASSED [ 64%]
+tests/unit/test_br5_state_machine.py::test_br5_illegal_transitions_are_rejected[SEATS_HELD-CONFIRMED] PASSED [ 66%]
+tests/unit/test_br5_state_machine.py::test_br5_illegal_transitions_are_rejected[COMPENSATING-CONFIRMED] PASSED [ 69%]
+tests/unit/test_br5_state_machine.py::test_br5_illegal_transitions_are_rejected[CONFIRMED-FAILED] PASSED [ 71%]
+tests/unit/test_br5_state_machine.py::test_br5_terminal_states_have_no_exits PASSED [ 73%]
+tests/unit/test_br6_compensation_plan.py::test_br6_failure_after_payment_refunds_then_releases PASSED [ 76%]
+tests/unit/test_br6_compensation_plan.py::test_br6_declined_payment_only_releases_seats PASSED [ 78%]
+tests/unit/test_br6_compensation_plan.py::test_br6_unknown_payment_outcome_is_refunded PASSED [ 80%]
+tests/unit/test_br6_compensation_plan.py::test_br6_nothing_to_undo_before_any_step_succeeded PASSED [ 83%]
+tests/unit/test_br6_compensation_plan.py::test_br6_timed_out_hold_is_released PASSED [ 85%]
+tests/unit/test_br7_cancellation.py::test_br7_confirmed_ticket_releases_seats_without_refund PASSED [ 88%]
+tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_cancelled[PENDING] PASSED [ 90%]
+tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_cancelled[SEATS_HELD] PASSED [ 92%]
+tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_cancelled[PAYMENT_DONE] PASSED [ 95%]
+tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_cancelled[COMPENSATING] PASSED [ 97%]
+tests/unit/test_br7_cancellation.py::test_br7_only_confirmed_bookings_can_be_cancelled[FAILED] PASSED [100%]
+
+============================== 42 passed in 1.10s ==============================
+
+All service test suites passed.
+
+# exit status 0

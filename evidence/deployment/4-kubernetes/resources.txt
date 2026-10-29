@@ -1,0 +1,50 @@
+$ kubectl -n tatkal get deployments,statefulsets -o wide; echo; kubectl -n tatkal get services,pvc; echo; kubectl -n tatkal get configmaps,secrets; echo "keys in secret db-passwords (values not shown):"; kubectl -n tatkal get secret db-passwords -o json | jq -r ".data | keys[]"
+# 2026-10-29 10:06:32 IST (UTC 04:36:32), git b118ea2
+
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS             IMAGES                            SELECTOR
+deployment.apps/booking-service        2/2     2            2           44s   booking-service        tatkal/booking-service:1.0        app=booking-service
+deployment.apps/inventory-service      1/1     1            1           44s   inventory-service      tatkal/inventory-service:1.0      app=inventory-service
+deployment.apps/mock-bank-gateway      1/1     1            1           44s   mock-bank-gateway      tatkal/mock-bank-gateway:1.0      app=mock-bank-gateway
+deployment.apps/notification-service   1/1     1            1           44s   notification-service   tatkal/notification-service:1.0   app=notification-service
+deployment.apps/payment-service        1/1     1            1           44s   payment-service        tatkal/payment-service:1.0        app=payment-service
+
+NAME                               READY   AGE   CONTAINERS   IMAGES
+statefulset.apps/booking-db        1/1     44s   postgres     postgres:16-alpine
+statefulset.apps/inventory-db      1/1     44s   postgres     postgres:16-alpine
+statefulset.apps/notification-db   1/1     44s   postgres     postgres:16-alpine
+statefulset.apps/payment-db        1/1     44s   postgres     postgres:16-alpine
+
+NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+service/booking-db             ClusterIP   None            <none>        5432/TCP   44s
+service/booking-service        ClusterIP   10.104.79.212   <none>        8001/TCP   44s
+service/inventory-db           ClusterIP   None            <none>        5432/TCP   44s
+service/inventory-service      ClusterIP   10.111.18.99    <none>        8002/TCP   44s
+service/mock-bank-gateway      ClusterIP   10.108.94.175   <none>        8099/TCP   44s
+service/notification-db        ClusterIP   None            <none>        5432/TCP   44s
+service/notification-service   ClusterIP   10.98.181.236   <none>        8004/TCP   44s
+service/payment-db             ClusterIP   None            <none>        5432/TCP   44s
+service/payment-service        ClusterIP   10.104.58.142   <none>        8003/TCP   44s
+
+NAME                                           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+persistentvolumeclaim/data-booking-db-0        Bound    pvc-fae17e29-0353-4b05-9e03-afe296d79086   1Gi        RWO            standard       <unset>                 44s
+persistentvolumeclaim/data-inventory-db-0      Bound    pvc-ee78c7a6-04b3-4e62-8b3e-11932771c0c2   1Gi        RWO            standard       <unset>                 44s
+persistentvolumeclaim/data-notification-db-0   Bound    pvc-154729af-926c-424b-9da7-af2f2bf91607   1Gi        RWO            standard       <unset>                 44s
+persistentvolumeclaim/data-payment-db-0        Bound    pvc-b8763a7a-fd35-4ddf-ac1a-59524d7f8036   1Gi        RWO            standard       <unset>                 44s
+
+NAME                                    DATA   AGE
+configmap/booking-service-config        4      44s
+configmap/inventory-service-config      2      44s
+configmap/kube-root-ca.crt              1      45s
+configmap/mock-bank-gateway-config      2      44s
+configmap/notification-service-config   2      44s
+configmap/payment-service-config        2      44s
+
+NAME                  TYPE     DATA   AGE
+secret/db-passwords   Opaque   4      45s
+keys in secret db-passwords (values not shown):
+BOOKING_DB_PASSWORD
+INVENTORY_DB_PASSWORD
+NOTIFICATION_DB_PASSWORD
+PAYMENT_DB_PASSWORD
+
+# exit status 0

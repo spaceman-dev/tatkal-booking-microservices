@@ -1,0 +1,40 @@
+$ bash deploy/k8s/demo-scaling.sh
+# 2026-10-29 10:07:57 IST (UTC 04:37:57), git b118ea2
+
+== booking-service pods
+NAME                               READY   STATUS    RESTARTS   AGE
+booking-service-654dbd4fcd-4jppl   1/1     Running   0          2m17s
+booking-service-654dbd4fcd-7z8gl   1/1     Running   0          2m17s
+
+== kubectl delete pod booking-service-654dbd4fcd-4jppl
+pod "booking-service-654dbd4fcd-4jppl" deleted from tatkal namespace
+NAME                               READY   STATUS        RESTARTS   AGE
+booking-service-654dbd4fcd-4jppl   1/1     Terminating   0          2m20s
+booking-service-654dbd4fcd-4qcjv   0/1     Running       0          3s
+booking-service-654dbd4fcd-7z8gl   1/1     Running       0          2m20s
+Waiting for deployment "booking-service" rollout to finish: 1 of 2 updated replicas are available...
+deployment "booking-service" successfully rolled out
+NAME                               READY   STATUS        RESTARTS   AGE
+booking-service-654dbd4fcd-4jppl   1/1     Terminating   0          2m20s
+booking-service-654dbd4fcd-4qcjv   1/1     Running       0          3s
+booking-service-654dbd4fcd-7z8gl   1/1     Running       0          2m20s
+
+== kubectl scale deployment booking-service --replicas=3
+deployment.apps/booking-service scaled
+Waiting for deployment "booking-service" rollout to finish: 2 of 3 updated replicas are available...
+Waiting for deployment "booking-service" rollout to finish: 2 of 3 updated replicas are available...
+deployment "booking-service" successfully rolled out
+NAME                               READY   STATUS      RESTARTS   AGE
+booking-service-654dbd4fcd-4jppl   0/1     Completed   0          2m23s
+booking-service-654dbd4fcd-4qcjv   1/1     Running     0          6s
+booking-service-654dbd4fcd-7z8gl   1/1     Running     0          2m23s
+booking-service-654dbd4fcd-zlhxd   1/1     Running     0          3s
+
+== what the client inside the cluster saw: 80 requests, answers per pod
+   6 booking-service-654dbd4fcd-4jppl
+  24 booking-service-654dbd4fcd-4qcjv
+  35 booking-service-654dbd4fcd-7z8gl
+  15 booking-service-654dbd4fcd-zlhxd
+failed requests: 0   (every line is in /tmp/tatkal-scaling-watch.log)
+
+# exit status 0

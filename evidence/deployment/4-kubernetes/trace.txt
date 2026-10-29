@@ -1,0 +1,22 @@
+$ LOG_SOURCE=k8s python scripts/trace.py demo-fb547e-happy | cut -c1-200
+# 2026-10-29 10:07:32 IST (UTC 04:37:32), git b118ea2
+
+04:37:16.088 INFO    booking-service      cid=demo-fb547e-happ booking created  booking_id=d93703f7-89f6-4992-b395-59057fe8c22a train_no=12951 journey_date=2028-12-22 seats=1
+04:37:16.091 INFO    inventory-service    cid=demo-fb547e-happ seats held  booking_id=d93703f7-89f6-4992-b395-59057fe8c22a hold_id=77f6103a-63d4-4070-8b9e-a43ee5f71bf2 seat_count=1 seats_left=1 strate
+04:37:16.092 INFO    inventory-service    cid=demo-fb547e-happ POST /api/v1/holds -> 201  method=POST path=/api/v1/holds status=201 duration_ms=3.3
+04:37:16.096 INFO    payment-service      cid=demo-fb547e-happ charging payer  payment_id=cdf05d72-a561-444e-bbf8-c19d338f0d34 booking_id=d93703f7-89f6-4992-b395-59057fe8c22a amount_paise=289500 payer
+04:37:16.181 INFO    mock-bank-gateway    cid=demo-fb547e-happ charge captured  charge_id=ch_45d1dbe2e1dc4279b7b5 amount_paise=289500 merchant_reference=d93703f7-89f6-4992-b395-59057fe8c22a
+04:37:16.181 INFO    mock-bank-gateway    cid=demo-fb547e-happ POST /gateway/v1/charges -> 200  method=POST path=/gateway/v1/charges status=200 duration_ms=83.0
+04:37:16.184 INFO    payment-service      cid=demo-fb547e-happ payment captured  payment_id=cdf05d72-a561-444e-bbf8-c19d338f0d34 status=CAPTURED gateway_attempts=1
+04:37:16.185 INFO    payment-service      cid=demo-fb547e-happ POST /api/v1/payments -> 201  method=POST path=/api/v1/payments status=201 duration_ms=91.0
+04:37:16.189 INFO    inventory-service    cid=demo-fb547e-happ hold confirmed  hold_id=77f6103a-63d4-4070-8b9e-a43ee5f71bf2 booking_id=d93703f7-89f6-4992-b395-59057fe8c22a
+04:37:16.189 INFO    inventory-service    cid=demo-fb547e-happ POST /api/v1/holds/77f6103a-63d4-4070-8b9e-a43ee5f71bf2/confirm -> 200  method=POST path=/api/v1/holds/77f6103a-63d4-4070-8b9e-a43ee5f71b
+04:37:16.192 INFO    booking-service      cid=demo-fb547e-happ booking confirmed  booking_id=d93703f7-89f6-4992-b395-59057fe8c22a pnr=6493520078
+04:37:16.193 INFO    booking-service      cid=demo-fb547e-happ POST /api/v1/bookings -> 201  method=POST path=/api/v1/bookings status=201 duration_ms=108.9
+04:37:16.830 INFO    notification-service cid=demo-fb547e-happ SMS sent to 98XXXXXX10  channel=SMS recipient=98XXXXXX10 text=Tatkal booking confirmed. PNR 6493520078, train 12951 on 2028-12-22, class 
+04:37:16.862 INFO    notification-service cid=demo-fb547e-happ EMAIL sent to a***@example.com  channel=EMAIL recipient=a***@example.com text=Tatkal booking confirmed. PNR 6493520078, train 12951 on 20
+04:37:16.865 INFO    notification-service cid=demo-fb547e-happ notification delivered  event_id=71da174d-0cc2-4639-ad57-28f67ee74219 event_type=BOOKING_CONFIRMED booking_id=d93703f7-89f6-4992-b395-590
+04:37:16.865 INFO    notification-service cid=demo-fb547e-happ POST /api/v1/notifications -> 201  method=POST path=/api/v1/notifications status=201 duration_ms=67.6
+04:37:16.866 INFO    booking-service      cid=demo-fb547e-happ outbox event delivered  event_id=71da174d-0cc2-4639-ad57-28f67ee74219 event_type=BOOKING_CONFIRMED booking_id=d93703f7-89f6-4992-b395-590
+
+# exit status 0

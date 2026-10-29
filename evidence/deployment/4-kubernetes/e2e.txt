@@ -1,0 +1,21 @@
+$ LOG_SOURCE=k8s python -m pytest tests/e2e -v -p no:cacheprovider
+# 2026-10-29 10:06:57 IST (UTC 04:36:57), git b118ea2
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.7.0 -- /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices/.venv/bin/python
+rootdir: /Users/dbhat/Downloads/scalable services/tatkal-booking-microservices
+configfile: pytest.ini
+plugins: anyio-4.15.1
+collecting ... collected 7 items
+
+tests/e2e/test_main_flow.py::test_book_pay_confirm_notify_happy_path PASSED [ 14%]
+tests/e2e/test_main_flow.py::test_failure_at_step_3_refunds_and_releases PASSED [ 28%]
+tests/e2e/test_main_flow.py::test_declined_payment_releases_the_seats PASSED [ 42%]
+tests/e2e/test_main_flow.py::test_sold_out_train_is_refused_before_any_payment PASSED [ 57%]
+tests/e2e/test_main_flow.py::test_cancelling_a_tatkal_ticket_returns_seats_without_refund PASSED [ 71%]
+tests/e2e/test_main_flow.py::test_business_rule_violations_are_rejected_up_front[passengers0-BR2] PASSED [ 85%]
+tests/e2e/test_main_flow.py::test_business_rule_violations_are_rejected_up_front[passengers1-BR2] PASSED [100%]
+
+============================== 7 passed in 5.40s ===============================
+
+# exit status 0

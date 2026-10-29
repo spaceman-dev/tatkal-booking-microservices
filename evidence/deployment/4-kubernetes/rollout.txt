@@ -1,0 +1,92 @@
+$ bash deploy/k8s/demo-rollout.sh
+# 2026-10-29 10:08:54 IST (UTC 04:38:54), git b118ea2
+
+== booking-service 1.1: same code, APP_VERSION=1.1.0, loaded into minikube
+ Image tatkal/inventory-service:1.1 Building 
+ Image tatkal/mock-bank-gateway:1.1 Building 
+ Image tatkal/payment-service:1.1 Building 
+ Image tatkal/notification-service:1.1 Building 
+ Image tatkal/booking-service:1.1 Building 
+ Image tatkal/booking-service:1.1 Built 
+
+== rolling update to 1.1
+deployment.apps/booking-service image updated
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "booking-service" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "booking-service" rollout to finish: 1 old replicas are pending termination...
+deployment "booking-service" successfully rolled out
+POD                                IMAGE                        READY
+booking-service-654dbd4fcd-7z8gl   tatkal/booking-service:1.0   true
+booking-service-654dbd4fcd-zlhxd   tatkal/booking-service:1.0   true
+booking-service-789bf6b667-5dd2m   tatkal/booking-service:1.1   true
+booking-service-789bf6b667-j7l5t   tatkal/booking-service:1.1   true
+booking-service-789bf6b667-p4kwv   tatkal/booking-service:1.1   true
+
+== rollback to the previous version
+Warning: resource deployments/booking-service was previously managed with 'kubectl apply'. Rolling back will not update the kubectl.kubernetes.io/last-applied-configuration annotation, which may cause unexpected behavior on future 'kubectl apply' operations. Consider using 'kubectl apply' with your previous configuration file instead.
+deployment.apps/booking-service rolled back
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "booking-service" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "booking-service" rollout to finish: 1 old replicas are pending termination...
+deployment "booking-service" successfully rolled out
+deployment.apps/booking-service 
+REVISION  CHANGE-CAUSE
+2         booking-service 1.1.0
+3         <none>
+
+POD                                IMAGE                        READY
+booking-service-654dbd4fcd-5vqck   tatkal/booking-service:1.0   true
+booking-service-654dbd4fcd-bqmt9   tatkal/booking-service:1.0   true
+booking-service-654dbd4fcd-sz9fd   tatkal/booking-service:1.0   true
+booking-service-789bf6b667-j7l5t   tatkal/booking-service:1.1   true
+booking-service-789bf6b667-p4kwv   tatkal/booking-service:1.1   true
+
+== a release that cannot start: there is no image tatkal/booking-service:9.9
+deployment.apps/booking-service image updated
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "booking-service" rollout to finish: 1 out of 3 new replicas have been updated...
+error: timed out waiting for the condition
+(the rollout does not finish, the old pods keep serving)
+POD                                IMAGE                        READY
+booking-service-56645c555f-z2bgl   tatkal/booking-service:9.9   false
+booking-service-654dbd4fcd-5vqck   tatkal/booking-service:1.0   true
+booking-service-654dbd4fcd-bqmt9   tatkal/booking-service:1.0   true
+booking-service-654dbd4fcd-sz9fd   tatkal/booking-service:1.0   true
+
+== rollback
+Warning: resource deployments/booking-service was previously managed with 'kubectl apply'. Rolling back will not update the kubectl.kubernetes.io/last-applied-configuration annotation, which may cause unexpected behavior on future 'kubectl apply' operations. Consider using 'kubectl apply' with your previous configuration file instead.
+deployment.apps/booking-service rolled back
+deployment "booking-service" successfully rolled out
+POD                                IMAGE                        READY
+booking-service-56645c555f-z2bgl   tatkal/booking-service:9.9   false
+booking-service-654dbd4fcd-5vqck   tatkal/booking-service:1.0   true
+booking-service-654dbd4fcd-bqmt9   tatkal/booking-service:1.0   true
+booking-service-654dbd4fcd-sz9fd   tatkal/booking-service:1.0   true
+
+== what the client inside the cluster saw: 159 requests, versions in order
+  26 1.0.0
+   2 1.1.0
+   2 1.0.0
+   1 1.1.0
+   1 1.0.0
+  18 1.1.0
+   1 1.0.0
+   6 1.1.0
+ 102 1.0.0
+failed requests: 0   (every line is in /tmp/tatkal-rollout-watch.log)
+
+# exit status 0

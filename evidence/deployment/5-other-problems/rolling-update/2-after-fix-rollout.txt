@@ -1,0 +1,15 @@
+== 04:01:02 UTC
+$ kubectl -n tatkal set image deployment/booking-service booking-service=tatkal/booking-service:1.1
+deployment.apps/booking-service image updated
+deployment "booking-service" successfully rolled out
+== 04:01:14 UTC
+$ kubectl -n tatkal rollout undo deployment/booking-service
+deployment.apps/booking-service rolled back
+deployment "booking-service" successfully rolled out
+deployment.apps/booking-service 
+REVISION  CHANGE-CAUSE
+2         booking-service 1.1.0
+3         <none>
+5         booking-service 1.1.0
+6         <none>
+

@@ -1,0 +1,17 @@
+$ docker compose -f docker-compose.db.yml up -d --wait booking-db; PY=$PWD/services/booking-service/.venv/bin/python; git worktree add --detach /tmp/tatkal-d056976 d056976; cp services/booking-service/.env evidence/deployment/5-other-problems/create-tables-race/race_check.py /tmp/tatkal-d056976/services/booking-service/; (cd /tmp/tatkal-d056976/services/booking-service && git log -1 --format="code at %h %s" && "$PY" race_check.py); git worktree remove --force /tmp/tatkal-d056976
+# 2026-10-29 10:12:56 IST (UTC 04:42:56), git b118ea2
+
+ Container tatkal-booking-db Running 
+ Container tatkal-booking-db Waiting 
+ Container tatkal-booking-db Healthy 
+Preparing worktree (detached HEAD d056976)
+HEAD is now at d056976 k8s manifests for minikube: statefulset per database, deployments, probes, deploy/port-forward/watch scripts
+code at d056976 k8s manifests for minikube: statefulset per database, deployments, probes, deploy/port-forward/watch scripts
+startup code: metadata.create_all
+replica 1: ok
+replica 3: IntegrityError: (psycopg.errors.UniqueViolation) duplicate key value violates unique constraint "pg_type_typname_nsp_index"
+replica 2: IntegrityError: (psycopg.errors.UniqueViolation) duplicate key value violates unique constraint "pg_type_typname_nsp_index"
+replica 4: IntegrityError: (psycopg.errors.UniqueViolation) duplicate key value violates unique constraint "pg_type_typname_nsp_index"
+errors: 3
+
+# exit status 0

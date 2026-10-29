@@ -9,7 +9,7 @@ from app.clients.inventory import InventoryClient
 from app.clients.notification import NotificationClient
 from app.clients.payment import PaymentClient
 from app.config import get_settings
-from app.core.db import build_engine, wait_for_database
+from app.core.db import build_engine, create_tables, wait_for_database
 from app.core.errors import install_error_handlers
 from app.core.health import router as health_router
 from app.core.logging import setup_logging
@@ -56,7 +56,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         wait_for_database(engine)
-        metadata.create_all(engine)
+        create_tables(engine, metadata)
         if settings.background_jobs_enabled:
             dispatcher.start()
             recovery.start()

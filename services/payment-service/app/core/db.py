@@ -2,7 +2,7 @@
 import logging
 import time
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import MetaData, create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError, OperationalError
 
@@ -44,6 +44,17 @@ def database_is_up(engine: Engine) -> bool:
         return True
     except Exception:
         return False
+
+
+SCHEMA_LOCK_KEY = 72_830_001  # any fixed number, each service has its own database anyway
+
+
+def create_tables(engine: Engine, metadata: MetaData) -> None:
+    """create_all, one replica at a time. Replicas that start together on an empty database
+    would all see "no table yet" and all run CREATE TABLE, and all but one would crash."""
+    with engine.begin() as conn:
+        conn.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": SCHEMA_LOCK_KEY})
+        metadata.create_all(conn)
 
 
 def is_unique_violation(exc: IntegrityError, constraint: str | None = None) -> bool:

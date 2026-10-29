@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from app.api.admin import router as admin_router
 from app.api.routes import router as api_router
 from app.config import get_settings
-from app.core.db import build_engine, wait_for_database
+from app.core.db import build_engine, create_tables, wait_for_database
 from app.core.errors import install_error_handlers
 from app.core.health import router as health_router
 from app.core.logging import setup_logging
@@ -37,7 +37,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         wait_for_database(engine)
-        metadata.create_all(engine)
+        create_tables(engine, metadata)
         if settings.seed_demo_data:
             seed_demo_data(engine, settings.seed_days)
         if settings.hold_expiry_enabled:

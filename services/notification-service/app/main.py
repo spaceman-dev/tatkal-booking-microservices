@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from app.api.routes import admin_router
 from app.api.routes import router as api_router
 from app.config import get_settings
-from app.core.db import build_engine, wait_for_database
+from app.core.db import build_engine, create_tables, wait_for_database
 from app.core.errors import install_error_handlers
 from app.core.health import router as health_router
 from app.core.logging import setup_logging
@@ -33,7 +33,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         wait_for_database(engine)
-        metadata.create_all(engine)
+        create_tables(engine, metadata)
         log.info("service ready", extra={"port": settings.port,
                                          "provider_failure_rate": settings.provider_failure_rate})
         yield

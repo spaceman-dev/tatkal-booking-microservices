@@ -8,10 +8,10 @@ PY=.venv/bin/python
 [ -x "$PY" ] || PY=python3
 
 newest() {
-  curl -s "localhost:8001/api/v1/bookings?limit=1" | $PY -c '
+  curl -s "localhost:8001/api/v1/bookings?limit=1" | $PY -c "
 import json, sys
 b = json.load(sys.stdin)
-print(f"{b[0][\"booking_id\"]}  {b[0][\"status\"]}  PNR {b[0][\"pnr\"]}" if b else "no bookings yet")'
+print(b[0]['booking_id'], b[0]['status'], 'PNR', b[0]['pnr']) if b else print('no bookings yet')"
 }
 
 echo "== newest booking before the restart"

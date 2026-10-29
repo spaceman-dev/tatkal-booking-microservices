@@ -94,7 +94,7 @@ pod out of its Service instead of restarting it over and over.
 
 **Problem.** Once the first Dockerfile was ready we ran the inventory-service image on its own, with the
 `.env` file we had been using on the laptop since Assignment 1:
-`docker run -d -p 8012:8002 --env-file services/inventory-service/.env tatkal/inventory-service:1.0`.
+`docker run -d --name inventory-smoke -p 8002:8002 --env-file services/inventory-service/.env tatkal/inventory-service:1.0`.
 The development database was up and healthy on `localhost:5442`, and the service with that same file had
 worked fine outside Docker. The container started but stayed at `health: starting`, curl got an empty
 reply, and after 30 seconds it exited with code 3. The log said `database not reachable yet (attempt
@@ -261,7 +261,7 @@ The service test suites were run again after the changes: 133 passed (`evidence/
 
 | Problem | How it showed up | What we changed |
 |-------------|------------------|------------------|
-| `docker compose` was not found on the Mac | `docker: 'compose' is not a docker command`, although the plugin was installed with Homebrew | pointed Docker at Homebrew's plugin folder (`cliPluginsExtraDirs` in `~/.docker/config.json`) |
+| `docker compose` was not found on the Mac | `docker: unknown command: docker compose`, although the plugin was installed with Homebrew | pointed Docker at Homebrew's plugin folder (`cliPluginsExtraDirs` in `~/.docker/config.json`) |
 | the first build used the old builder | Compose warned that it `requires buildx plugin` (`2-compose/first-up.txt`) | installed buildx; builds use BuildKit since |
 | one end-to-end test failed against the containers | 6 of 7 passed: the log check read old files in `logs/`, while the containers log to stdout | the test and `trace.py` read `docker compose logs` or `kubectl logs` (`LOG_SOURCE`, detected automatically) |
 | `demo_flow.sh` failed at step 1 | `python3` on macOS is 3.9, the scripts need 3.11+ | the script uses the virtualenv's Python; `stack.py` checks the version and says what to install |

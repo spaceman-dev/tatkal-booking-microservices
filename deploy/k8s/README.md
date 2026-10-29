@@ -3,6 +3,8 @@
 The same images as `docker-compose.yml`, deployed on Minikube with Deployments, StatefulSets and Services
 in the namespace `tatkal`.
 
+![Kubernetes deployment](../../docs/diagrams/deployment-k8s.png)
+
 | Kind | What |
 |---|---|
 | StatefulSet + headless Service | `booking-db`, `inventory-db`, `payment-db`, `notification-db`: PostgreSQL 16, one per service, 1 Gi PersistentVolumeClaim each |

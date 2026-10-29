@@ -1,45 +1,30 @@
+%%{init: {"themeVariables": {"fontSize": "17px"}, "flowchart": {"nodeSpacing": 18, "rankSpacing": 46, "diagramPadding": 4, "wrappingWidth": 260}}}%%
 flowchart LR
-    client(["host<br/>curl, tests, scripts"])
-
-    subgraph tatkal["docker compose project tatkal: 9 containers (services from images tatkal/&lt;name&gt;:1.0)"]
+    client(["host<br/>ports 8001-8004, 8099"])
+    subgraph tatkal["docker compose project tatkal: 9 containers, database passwords from .env"]
         direction LR
-        subgraph bnet["network booking-data (internal)"]
+        subgraph bnet["booking-data (internal)"]
             direction TB
-            booking["<b>booking-service</b><br/>:8001"]
-            bdb[("booking-db<br/>postgres 16")]
+            booking["<b>booking-service</b><br/>:8001"] --- bdb[("booking-db")]
         end
-        subgraph inet["network inventory-data (internal)"]
-            direction TB
-            inventory["<b>inventory-service</b><br/>:8002"]
-            idb[("inventory-db<br/>postgres 16")]
+        subgraph inet["inventory-data (internal)"]
+            direction LR
+            inventory["<b>inventory-service</b><br/>:8002"] --- idb[("inventory-db")]
         end
-        subgraph pnet["network payment-data (internal)"]
-            direction TB
-            payment["<b>payment-service</b><br/>:8003"]
-            pdb[("payment-db<br/>postgres 16")]
+        subgraph nnet["notification-data (internal)"]
+            direction LR
+            notification["<b>notification-service</b><br/>:8004"] --- ndb[("notification-db")]
         end
-        subgraph nnet["network notification-data (internal)"]
-            direction TB
-            notification["<b>notification-service</b><br/>:8004"]
-            ndb[("notification-db<br/>postgres 16")]
+        subgraph pnet["payment-data (internal)"]
+            direction LR
+            payment["<b>payment-service</b><br/>:8003"] --- pdb[("payment-db")]
         end
-        bank["<b>mock-bank-gateway</b><br/>:8099"]
+        subgraph banknet["bank"]
+            bank["<b>mock-bank-gateway</b><br/>:8099"]
+        end
     end
-
-    vols[("named volumes<br/>one per database")]
-    envfile[/".env<br/>4 passwords<br/>not in git or images"/]
-
-    client -- "published ports 8001-8004, 8099<br/>(databases not published)" --> booking
-    booking -- "HTTP, network services<br/>http://inventory-service:8002" --> inventory
-    booking -- "HTTP, network services<br/>http://payment-service:8003" --> payment
-    booking -. "HTTP, async outbox<br/>http://notification-service:8004" .-> notification
-    payment -- "HTTP, network bank<br/>http://mock-bank-gateway:8099" --> bank
-    booking -- "SQL booking-db:5432" --- bdb
-    inventory -- "SQL inventory-db:5432" --- idb
-    payment -- "SQL payment-db:5432" --- pdb
-    notification -- "SQL notification-db:5432" --- ndb
-    bdb -.- vols
-    idb -.- vols
-    pdb -.- vols
-    ndb -.- vols
-    envfile -. "docker compose up puts them<br/>into the containers' environment" .-> tatkal
+    client --> bnet
+    bnet -- "HTTP" --> inet
+    bnet -. "outbox" .-> nnet
+    bnet -- "HTTP" --> pnet
+    pnet -- "HTTP" --> banknet

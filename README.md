@@ -80,6 +80,8 @@ there and the end-to-end tests still pass.
 
 How it is put together:
 
+![Docker Compose deployment](docs/diagrams/deployment-compose.png)
+
 - **One image per service** (`services/<name>/Dockerfile`): `python:3.12-slim`, dependencies in their own
   layer, the code owned by root and run by a normal user, a `HEALTHCHECK` on `/health`, `python -m app` as
   PID 1 so `docker stop` shuts it down cleanly. `.dockerignore` keeps `.env`, `.venv` and the tests out.

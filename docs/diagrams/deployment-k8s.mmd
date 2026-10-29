@@ -1,49 +1,29 @@
+%%{init: {"themeVariables": {"fontSize": "17px"}, "flowchart": {"nodeSpacing": 18, "rankSpacing": 44, "diagramPadding": 4, "wrappingWidth": 280}}}%%
 flowchart LR
-    host(["host<br/>kubectl, port-forward.sh, tests"])
-
-    subgraph mk["minikube cluster, namespace tatkal"]
+    subgraph ns["Minikube, namespace tatkal"]
         direction LR
-        subgraph bk["booking"]
-            direction TB
-            bsvc{{"Service booking-service :8001"}}
-            bdep["Deployment booking-service<br/>2 replicas (scaled to 3 in the demo)<br/>probes /health/live, /health"]
-            bdb[("StatefulSet booking-db<br/>PVC 1Gi")]
+        cfg[/"ConfigMap per service<br/>Secret db-passwords (from .env)"/]
+        subgraph b["booking"]
+            direction LR
+            bdep["<b>booking-service</b><br/>Service (ClusterIP :8001)<br/>Deployment, 2 replicas<br/>probes, preStop 5 s"] --- bdb[("StatefulSet booking-db<br/>headless Service<br/>PVC 1Gi")]
         end
-        subgraph inv["inventory"]
-            direction TB
-            isvc{{"Service inventory-service :8002"}}
-            idep["Deployment inventory-service<br/>1 replica"]
-            idb[("StatefulSet inventory-db<br/>PVC 1Gi")]
+        subgraph i["inventory"]
+            direction LR
+            inv["<b>inventory-service</b><br/>Service + Deployment<br/>1 replica"] --- idb[("StatefulSet<br/>inventory-db, PVC")]
         end
-        subgraph pay["payment"]
-            direction TB
-            psvc{{"Service payment-service :8003"}}
-            pdep["Deployment payment-service<br/>1 replica"]
-            pdb[("StatefulSet payment-db<br/>PVC 1Gi")]
+        subgraph n["notification"]
+            direction LR
+            noti["<b>notification-service</b><br/>Service + Deployment<br/>1 replica"] --- ndb[("StatefulSet<br/>notification-db, PVC")]
         end
-        subgraph noti["notification"]
-            direction TB
-            nsvc{{"Service notification-service :8004"}}
-            ndep["Deployment notification-service<br/>1 replica"]
-            ndb[("StatefulSet notification-db<br/>PVC 1Gi")]
+        subgraph p["payment"]
+            direction LR
+            pay["<b>payment-service</b><br/>Service + Deployment<br/>1 replica"] --- pdb[("StatefulSet<br/>payment-db, PVC")]
         end
-        gsvc{{"Service mock-bank-gateway :8099"}}
-        gdep["Deployment mock-bank-gateway<br/>1 replica"]
-        cfg[/"ConfigMaps (URLs, log level)<br/>Secret db-passwords (from .env)"/]
+        subgraph bk["bank"]
+            bank["<b>mock-bank-gateway</b><br/>Service + Deployment<br/>1 replica"]
+        end
     end
-
-    host -- "kubectl port-forward<br/>localhost:8001-8004, 8099" --> bsvc
-    bsvc --> bdep
-    isvc --> idep
-    psvc --> pdep
-    nsvc --> ndep
-    gsvc --> gdep
-    bdep -- "HTTP http://inventory-service:8002" --> isvc
-    bdep -- "HTTP http://payment-service:8003" --> psvc
-    bdep -. "HTTP async outbox" .-> nsvc
-    pdep -- "HTTP http://mock-bank-gateway:8099" --> gsvc
-    bdep -- "SQL booking-db:5432" --- bdb
-    idep -- "SQL" --- idb
-    pdep -- "SQL" --- pdb
-    ndep -- "SQL" --- ndb
-    cfg -. "envFrom / secretKeyRef" .-> bdep
+    b -- "HTTP" --> i
+    b -. "outbox" .-> n
+    b -- "HTTP" --> p
+    p -- "HTTP" --> bk

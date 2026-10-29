@@ -1,0 +1,154 @@
+# The whole Tatkal booking system in containers (Assignment 2).
+#
+#   cp .env.example .env        # once, then put your own passwords in .env
+#   docker compose up --build
+#
+# Nine containers: four PostgreSQL databases (one per service, each with its own
+# user and password) and the five services. Passwords come from .env, which git
+# ignores. Inside Docker the services reach each other by service name
+# (http://inventory-service:8002), never by localhost.
+#
+# Networks keep each database private to its own service: booking-service can
+# reach booking-db but not inventory-db. Only payment-service can reach the bank.
+
+name: tatkal
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-postgres: &postgres
+  image: postgres:16-alpine
+  restart: unless-stopped
+  command: ["postgres", "-c", "max_connections=200", "-c", "log_min_messages=warning"]
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+    interval: 5s
+    timeout: 3s
+    retries: 20
+  logging: *logging
+
+# the services' own health checks come from the HEALTHCHECK in each Dockerfile
+x-service: &service
+  restart: unless-stopped
+  logging: *logging
+
+services:
+  # ---- databases (not published on the host) ----
+  booking-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: booking_db
+      POSTGRES_USER: booking_svc
+      POSTGRES_PASSWORD: ${BOOKING_DB_PASSWORD:?set BOOKING_DB_PASSWORD in .env (copy .env.example)}
+    volumes:
+      - booking-db-data:/var/lib/postgresql/data
+    networks: [booking-data]
+
+  inventory-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: inventory_svc
+      POSTGRES_PASSWORD: ${INVENTORY_DB_PASSWORD:?set INVENTORY_DB_PASSWORD in .env (copy .env.example)}
+    volumes:
+      - inventory-db-data:/var/lib/postgresql/data
+    networks: [inventory-data]
+
+  payment-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_svc
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:?set PAYMENT_DB_PASSWORD in .env (copy .env.example)}
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+    networks: [payment-data]
+
+  notification-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: notification_svc
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?set NOTIFICATION_DB_PASSWORD in .env (copy .env.example)}
+    volumes:
+      - notification-db-data:/var/lib/postgresql/data
+    networks: [notification-data]
+
+  # ---- services ----
+  mock-bank-gateway:
+    <<: *service
+    build: services/mock-bank-gateway
+    image: tatkal/mock-bank-gateway:${IMAGE_TAG:-1.0}
+    ports: ["8099:8099"]
+    networks: [bank]
+
+  inventory-service:
+    <<: *service
+    build: services/inventory-service
+    image: tatkal/inventory-service:${IMAGE_TAG:-1.0}
+    environment:
+      DATABASE_URL: postgresql+psycopg://inventory_svc:${INVENTORY_DB_PASSWORD}@inventory-db:5432/inventory_db
+      ADMIN_API_ENABLED: "true"   # dev/demo only: fault injection used by the tests and the demo
+    ports: ["8002:8002"]
+    networks: [services, inventory-data]
+    depends_on:
+      inventory-db: {condition: service_healthy}
+
+  payment-service:
+    <<: *service
+    build: services/payment-service
+    image: tatkal/payment-service:${IMAGE_TAG:-1.0}
+    environment:
+      DATABASE_URL: postgresql+psycopg://payment_svc:${PAYMENT_DB_PASSWORD}@payment-db:5432/payment_db
+      GATEWAY_URL: http://mock-bank-gateway:8099
+    ports: ["8003:8003"]
+    networks: [services, payment-data, bank]
+    depends_on:
+      payment-db: {condition: service_healthy}
+      mock-bank-gateway: {condition: service_healthy}
+
+  notification-service:
+    <<: *service
+    build: services/notification-service
+    image: tatkal/notification-service:${IMAGE_TAG:-1.0}
+    environment:
+      DATABASE_URL: postgresql+psycopg://notification_svc:${NOTIFICATION_DB_PASSWORD}@notification-db:5432/notification_db
+      ADMIN_API_ENABLED: "true"   # dev/demo only: lets the tests make the SMS provider fail
+    ports: ["8004:8004"]
+    networks: [services, notification-data]
+    depends_on:
+      notification-db: {condition: service_healthy}
+
+  booking-service:
+    <<: *service
+    build: services/booking-service
+    image: tatkal/booking-service:${IMAGE_TAG:-1.0}
+    environment:
+      DATABASE_URL: postgresql+psycopg://booking_svc:${BOOKING_DB_PASSWORD}@booking-db:5432/booking_db
+      INVENTORY_SERVICE_URL: http://inventory-service:8002
+      PAYMENT_SERVICE_URL: http://payment-service:8003
+      NOTIFICATION_SERVICE_URL: http://notification-service:8004
+    ports: ["8001:8001"]
+    networks: [services, booking-data]
+    depends_on:
+      booking-db: {condition: service_healthy}
+      inventory-service: {condition: service_healthy}
+      payment-service: {condition: service_healthy}
+      notification-service: {condition: service_healthy}
+
+networks:
+  services: {}                          # REST calls between the services
+  bank: {}                              # payment-service <-> the bank, nobody else
+  booking-data: {internal: true}        # a service and its own database only
+  inventory-data: {internal: true}
+  payment-data: {internal: true}
+  notification-data: {internal: true}
+
+volumes:
+  booking-db-data:
+  inventory-db-data:
+  payment-db-data:
+  notification-db-data:

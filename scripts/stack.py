@@ -12,10 +12,15 @@ Environment variables override the .env files, e.g.
     HOLD_STRATEGY=naive python scripts/stack.py restart inventory-service
 
 The PostgreSQL databases are not started here:  docker compose -f docker-compose.db.yml up -d
+(passwords from the root .env, which setup creates from .env.example).
+To run everything in containers instead: docker compose up --build
 """
+from __future__ import annotations
+
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -50,6 +55,35 @@ def read_env_file(service: str) -> dict:
             key, value = line.split("=", 1)
             values[key.strip()] = value.strip()
     return values
+
+
+def parse_env(path: Path) -> dict:
+    values = {}
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+    return values
+
+
+def root_env() -> dict:
+    """The database passwords live in the root .env (shared with docker compose)."""
+    path = ROOT / ".env"
+    if not path.exists():
+        shutil.copy(ROOT / ".env.example", path)
+        print("==> created .env from .env.example (database passwords, change them if you like)")
+    return parse_env(path)
+
+
+def service_env_text(service: str, passwords: dict) -> str:
+    """The service's .env.example with the database password taken from the root .env."""
+    text = (SERVICES_DIR / service / ".env.example").read_text()
+    var = service.split("-")[0].upper() + "_DB_PASSWORD"
+    if passwords.get(var):
+        text = re.sub(r"^(DATABASE_URL=postgresql\+psycopg://[^:/]+:)[^@]*@",
+                      lambda m: m.group(1) + passwords[var] + "@", text, flags=re.M)
+    return text
 
 
 def port_of(service: str) -> int:
@@ -124,6 +158,7 @@ def running_pid(service: str) -> int | None:
 def cmd_setup(_args) -> None:
     if sys.version_info < (3, 11):
         sys.exit("Python 3.11 or newer is required")
+    passwords = root_env()
     for service in SERVICES:
         folder = SERVICES_DIR / service
         venv = folder / ".venv"
@@ -131,11 +166,11 @@ def cmd_setup(_args) -> None:
         if not venv.exists():
             subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
         subprocess.run([str(venv_python(venv)), "-m", "pip", "install", "-q", "--upgrade", "pip"], check=True)
-        subprocess.run([str(venv_python(venv)), "-m", "pip", "install", "-q", "-r", str(folder / "requirements.txt")],
+        subprocess.run([str(venv_python(venv)), "-m", "pip", "install", "-q", "-r", str(folder / "requirements-dev.txt")],
                        check=True)
         env_file = folder / ".env"
         if not env_file.exists():
-            shutil.copy(folder / ".env.example", env_file)
+            env_file.write_text(service_env_text(service, passwords))
             print("    created .env from .env.example")
     print("==> tooling venv for scripts/ and tests/e2e")
     if not TOOLS_VENV.exists():
@@ -240,6 +275,9 @@ def cmd_test(args) -> None:
 
 
 def main() -> None:
+    if sys.version_info < (3, 11):
+        sys.exit(f"Python 3.11 or newer is required (this is {sys.version.split()[0]}), "
+                 "try python3.12 scripts/stack.py ...")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("setup").set_defaults(func=cmd_setup)

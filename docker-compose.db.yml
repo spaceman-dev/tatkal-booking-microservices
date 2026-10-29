@@ -7,8 +7,9 @@
 # Start:   docker compose -f docker-compose.db.yml up -d
 # Stop:    docker compose -f docker-compose.db.yml down        (add -v to wipe data)
 #
-# The application services themselves run on the host for Assignment 1
-# (see README). In Assignment 2 they get their own containers.
+# This file is for running the services on the host while developing (scripts/stack.py).
+# The passwords come from the root .env, like in docker-compose.yml.
+# To run the whole application in containers use docker-compose.yml instead.
 
 name: tatkal-db
 
@@ -24,7 +25,7 @@ services:
     environment:
       POSTGRES_DB: booking_db
       POSTGRES_USER: booking_svc
-      POSTGRES_PASSWORD: booking_dev_pw
+      POSTGRES_PASSWORD: ${BOOKING_DB_PASSWORD:?set BOOKING_DB_PASSWORD in .env (copy .env.example)}
     ports:
       - "5441:5432"
     volumes:
@@ -41,7 +42,7 @@ services:
     environment:
       POSTGRES_DB: inventory_db
       POSTGRES_USER: inventory_svc
-      POSTGRES_PASSWORD: inventory_dev_pw
+      POSTGRES_PASSWORD: ${INVENTORY_DB_PASSWORD:?set INVENTORY_DB_PASSWORD in .env (copy .env.example)}
     ports:
       - "5442:5432"
     volumes:
@@ -58,7 +59,7 @@ services:
     environment:
       POSTGRES_DB: payment_db
       POSTGRES_USER: payment_svc
-      POSTGRES_PASSWORD: payment_dev_pw
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:?set PAYMENT_DB_PASSWORD in .env (copy .env.example)}
     ports:
       - "5443:5432"
     volumes:
@@ -75,7 +76,7 @@ services:
     environment:
       POSTGRES_DB: notification_db
       POSTGRES_USER: notification_svc
-      POSTGRES_PASSWORD: notification_dev_pw
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?set NOTIFICATION_DB_PASSWORD in .env (copy .env.example)}
     ports:
       - "5444:5432"
     volumes:

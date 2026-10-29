@@ -1,0 +1,302 @@
+$ docker compose up --build -d --wait && docker compose ps
+# 2026-10-29 09:53:07 IST (UTC 04:23:07), git d5275cd
+
+ Image tatkal/inventory-service:1.0 Building 
+ Image tatkal/mock-bank-gateway:1.0 Building 
+ Image tatkal/payment-service:1.0 Building 
+ Image tatkal/booking-service:1.0 Building 
+ Image tatkal/notification-service:1.0 Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 3.10kB done
+#1 DONE 0.0s
+
+#2 [booking-service internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.45kB done
+#2 DONE 0.0s
+
+#3 [notification-service internal] load build definition from Dockerfile
+#3 transferring dockerfile: 1.47kB done
+#3 DONE 0.0s
+
+#4 [inventory-service internal] load build definition from Dockerfile
+#4 transferring dockerfile: 1.46kB done
+#4 DONE 0.0s
+
+#5 [payment-service internal] load build definition from Dockerfile
+#5 transferring dockerfile: 1.45kB done
+#5 DONE 0.0s
+
+#6 [mock-bank-gateway internal] load build definition from Dockerfile
+#6 transferring dockerfile: 1.37kB done
+#6 DONE 0.0s
+
+#7 [booking-service internal] load metadata for docker.io/library/python:3.12-slim
+#7 DONE 0.0s
+
+#8 [inventory-service internal] load .dockerignore
+#8 transferring context: 213B done
+#8 DONE 0.0s
+
+#9 [notification-service internal] load .dockerignore
+#9 transferring context: 213B done
+#9 DONE 0.0s
+
+#10 [payment-service internal] load .dockerignore
+#10 transferring context: 213B done
+#10 DONE 0.0s
+
+#11 [booking-service internal] load .dockerignore
+#11 transferring context: 213B done
+#11 DONE 0.0s
+
+#12 [mock-bank-gateway internal] load .dockerignore
+#12 transferring context: 213B done
+#12 DONE 0.0s
+
+#13 [payment-service internal] load build context
+#13 transferring context: 1.27kB done
+#13 DONE 0.0s
+
+#14 [inventory-service internal] load build context
+#14 transferring context: 1.35kB done
+#14 DONE 0.0s
+
+#15 [booking-service internal] load build context
+#15 transferring context: 1.53kB done
+#15 DONE 0.0s
+
+#16 [notification-service 1/6] FROM docker.io/library/python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+#16 resolve docker.io/library/python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea 0.0s done
+#16 DONE 0.0s
+
+#17 [mock-bank-gateway internal] load build context
+#17 transferring context: 596B done
+#17 DONE 0.0s
+
+#18 [notification-service internal] load build context
+#18 transferring context: 1.16kB done
+#18 DONE 0.0s
+
+#19 [notification-service 4/6] COPY requirements.txt .
+#19 CACHED
+
+#20 [notification-service 5/6] RUN pip install -r requirements.txt
+#20 CACHED
+
+#21 [booking-service 5/6] RUN pip install -r requirements.txt
+#21 CACHED
+
+#22 [booking-service 4/6] COPY requirements.txt .
+#22 CACHED
+
+#23 [inventory-service 4/6] COPY requirements.txt .
+#23 CACHED
+
+#24 [inventory-service 5/6] RUN pip install -r requirements.txt
+#24 CACHED
+
+#25 [mock-bank-gateway 4/6] COPY requirements.txt .
+#25 CACHED
+
+#26 [mock-bank-gateway 5/6] RUN pip install -r requirements.txt
+#26 CACHED
+
+#27 [inventory-service 2/6] WORKDIR /app
+#27 CACHED
+
+#28 [payment-service 4/6] COPY requirements.txt .
+#28 CACHED
+
+#29 [payment-service 5/6] RUN pip install -r requirements.txt
+#29 CACHED
+
+#30 [inventory-service 3/6] RUN useradd --system --uid 10001 --no-create-home tatkal
+#30 CACHED
+
+#31 [inventory-service 6/6] COPY app ./app
+#31 CACHED
+
+#32 [notification-service 6/6] COPY app ./app
+#32 CACHED
+
+#33 [payment-service 6/6] COPY app ./app
+#33 CACHED
+
+#34 [mock-bank-gateway 6/6] COPY app ./app
+#34 CACHED
+
+#35 [booking-service 6/6] COPY app ./app
+#35 CACHED
+
+#36 [mock-bank-gateway] exporting to image
+#36 exporting layers done
+#36 exporting manifest sha256:b9c19bfb88cacc6b64e17dbd8502f1cf1fb636762544c8d5eecd14028a58ef6c done
+#36 exporting config sha256:e9f84885ce1297e73f7916ad0067a21b6209869443add1de45872cb9ab380608 done
+#36 exporting attestation manifest sha256:ba57204c8a6e2a696caee7c14b4648955bc40c7250217cf6eb8300c477abacf5
+#36 exporting attestation manifest sha256:ba57204c8a6e2a696caee7c14b4648955bc40c7250217cf6eb8300c477abacf5 0.0s done
+#36 exporting manifest list sha256:4b066ac87a26e3136a6f743f9da51252af4e362bc72e2273d1c3065700e8e818 0.0s done
+#36 naming to docker.io/tatkal/mock-bank-gateway:1.0 done
+#36 unpacking to docker.io/tatkal/mock-bank-gateway:1.0 done
+#36 DONE 0.1s
+
+#37 [inventory-service] exporting to image
+#37 exporting layers done
+#37 exporting manifest sha256:3820b58072db1a5f87a40c4759c18d97a0992e36be2a39516aea004e66ed9f93 done
+#37 exporting config sha256:cb7d762b53039ad77c4791edbf0e1df5b354befd110635e45e9f76bbe3054c39 done
+#37 exporting attestation manifest sha256:00e800b450f859f3011101dcffafd186b47cdc12fd988a5bc2b951822168c7ac 0.0s done
+#37 exporting manifest list sha256:96578c7ce692f993e0f900b88bfbbb8d61ed0f1c8ce5cb9ee046cea0b4113ea9 0.0s done
+#37 naming to docker.io/tatkal/inventory-service:1.0 done
+#37 unpacking to docker.io/tatkal/inventory-service:1.0 done
+#37 DONE 0.1s
+
+#38 [notification-service] exporting to image
+#38 exporting layers done
+#38 exporting manifest sha256:763ede601665fb1842474258a2b514a286068b59cf41a969f7d302b63bc13de8 done
+#38 exporting config sha256:96503c72f98d8d214ef512dec9ea790a93007474855564d58beeb2155d720bb2 done
+#38 exporting attestation manifest sha256:2c2f575decc9bb52f1e3d55a3d8778125d4a6a79f033221607f829278dcb0d7e 0.0s done
+#38 exporting manifest list sha256:2e4b0b256e45b010a24b35e874275dc0e75fb729acd6a0189069fc305d6945ed 0.0s done
+#38 naming to docker.io/tatkal/notification-service:1.0 done
+#38 unpacking to docker.io/tatkal/notification-service:1.0 done
+#38 DONE 0.1s
+
+#39 [payment-service] exporting to image
+#39 exporting layers done
+#39 exporting manifest sha256:4c44bdd80c45ef9485f7f905676a3bf36c3085825e90b5f460aeaef3d8e1da12 done
+#39 exporting config sha256:d749420de9298d89d997c01674ac4d927e2f43cd8ba03dbf1c98506cf7df3778 done
+#39 exporting attestation manifest sha256:cd0a96e03ce6761ffc0f3768505a90c88f310828df0ac7ea0f356af91aa6b113 0.0s done
+#39 exporting manifest list sha256:b6ca668418620f35f3950369e42c941422f116a5df43a9a5a3f984234d5fef3e 0.0s done
+#39 naming to docker.io/tatkal/payment-service:1.0 done
+#39 unpacking to docker.io/tatkal/payment-service:1.0 done
+#39 DONE 0.1s
+
+#40 [booking-service] exporting to image
+#40 exporting layers done
+#40 exporting manifest sha256:87b307a491d6970f7057a6387627297047cbf02a76193bb182d67b942b07eefc done
+#40 exporting config sha256:b7de1be6ae4e943953e4e7293ddbbb24987646ad1515e1ca1a4c81a73f9d1310 done
+#40 exporting attestation manifest sha256:2298735799af5d207f4f9066c70f55dfafae2bc0ba6b209ff6aaa7e2664387ec 0.0s done
+#40 exporting manifest list sha256:d00824e6392741656fe7864dfb8d4a4c72db2d52cb5476301d8c4a34bcef80e2 0.0s done
+#40 naming to docker.io/tatkal/booking-service:1.0 done
+#40 unpacking to docker.io/tatkal/booking-service:1.0 done
+#40 DONE 0.1s
+
+#41 [inventory-service] resolving provenance for metadata file
+#41 DONE 0.0s
+
+#42 [booking-service] resolving provenance for metadata file
+#42 DONE 0.0s
+
+#43 [notification-service] resolving provenance for metadata file
+#43 DONE 0.0s
+
+#44 [mock-bank-gateway] resolving provenance for metadata file
+#44 DONE 0.0s
+
+#45 [payment-service] resolving provenance for metadata file
+#45 DONE 0.0s
+ Image tatkal/payment-service:1.0 Built 
+ Image tatkal/inventory-service:1.0 Built 
+ Image tatkal/notification-service:1.0 Built 
+ Image tatkal/booking-service:1.0 Built 
+ Image tatkal/mock-bank-gateway:1.0 Built 
+ Network tatkal_payment-data Creating 
+ Network tatkal_payment-data Created 
+ Network tatkal_bank Creating 
+ Network tatkal_bank Created 
+ Network tatkal_services Creating 
+ Network tatkal_services Created 
+ Network tatkal_inventory-data Creating 
+ Network tatkal_inventory-data Created 
+ Network tatkal_booking-data Creating 
+ Network tatkal_booking-data Created 
+ Network tatkal_notification-data Creating 
+ Network tatkal_notification-data Created 
+ Volume tatkal_payment-db-data Creating 
+ Volume tatkal_payment-db-data Created 
+ Volume tatkal_booking-db-data Creating 
+ Volume tatkal_booking-db-data Created 
+ Volume tatkal_inventory-db-data Creating 
+ Volume tatkal_inventory-db-data Created 
+ Volume tatkal_notification-db-data Creating 
+ Volume tatkal_notification-db-data Created 
+ Container tatkal-mock-bank-gateway-1 Creating 
+ Container tatkal-notification-db-1 Creating 
+ Container tatkal-booking-db-1 Creating 
+ Container tatkal-inventory-db-1 Creating 
+ Container tatkal-payment-db-1 Creating 
+ Container tatkal-mock-bank-gateway-1 Created 
+ Container tatkal-payment-db-1 Created 
+ Container tatkal-payment-service-1 Creating 
+ Container tatkal-notification-db-1 Created 
+ Container tatkal-notification-service-1 Creating 
+ Container tatkal-booking-db-1 Created 
+ Container tatkal-inventory-db-1 Created 
+ Container tatkal-inventory-service-1 Creating 
+ Container tatkal-payment-service-1 Created 
+ Container tatkal-notification-service-1 Created 
+ Container tatkal-inventory-service-1 Created 
+ Container tatkal-booking-service-1 Creating 
+ Container tatkal-booking-service-1 Created 
+ Container tatkal-inventory-db-1 Starting 
+ Container tatkal-mock-bank-gateway-1 Starting 
+ Container tatkal-payment-db-1 Starting 
+ Container tatkal-notification-db-1 Starting 
+ Container tatkal-booking-db-1 Starting 
+ Container tatkal-payment-db-1 Started 
+ Container tatkal-booking-db-1 Started 
+ Container tatkal-inventory-db-1 Started 
+ Container tatkal-notification-db-1 Started 
+ Container tatkal-inventory-db-1 Waiting 
+ Container tatkal-notification-db-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Started 
+ Container tatkal-payment-db-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Healthy 
+ Container tatkal-payment-db-1 Healthy 
+ Container tatkal-payment-service-1 Starting 
+ Container tatkal-payment-service-1 Started 
+ Container tatkal-inventory-db-1 Healthy 
+ Container tatkal-notification-db-1 Healthy 
+ Container tatkal-inventory-service-1 Starting 
+ Container tatkal-notification-service-1 Starting 
+ Container tatkal-notification-service-1 Started 
+ Container tatkal-inventory-service-1 Started 
+ Container tatkal-payment-service-1 Waiting 
+ Container tatkal-notification-service-1 Waiting 
+ Container tatkal-booking-db-1 Waiting 
+ Container tatkal-inventory-service-1 Waiting 
+ Container tatkal-booking-db-1 Healthy 
+ Container tatkal-payment-service-1 Healthy 
+ Container tatkal-notification-service-1 Healthy 
+ Container tatkal-inventory-service-1 Healthy 
+ Container tatkal-booking-service-1 Starting 
+ Container tatkal-booking-service-1 Started 
+ Container tatkal-payment-db-1 Waiting 
+ Container tatkal-inventory-service-1 Waiting 
+ Container tatkal-inventory-db-1 Waiting 
+ Container tatkal-notification-service-1 Waiting 
+ Container tatkal-booking-service-1 Waiting 
+ Container tatkal-payment-service-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Waiting 
+ Container tatkal-booking-db-1 Waiting 
+ Container tatkal-notification-db-1 Waiting 
+ Container tatkal-notification-service-1 Healthy 
+ Container tatkal-mock-bank-gateway-1 Healthy 
+ Container tatkal-booking-db-1 Healthy 
+ Container tatkal-payment-service-1 Healthy 
+ Container tatkal-notification-db-1 Healthy 
+ Container tatkal-payment-db-1 Healthy 
+ Container tatkal-inventory-db-1 Healthy 
+ Container tatkal-inventory-service-1 Healthy 
+ Container tatkal-booking-service-1 Healthy 
+NAME                            IMAGE                             COMMAND                  SERVICE                CREATED          STATUS                    PORTS
+tatkal-booking-db-1             postgres:16-alpine                "docker-entrypoint.s…"   booking-db             11 seconds ago   Up 10 seconds (healthy)   5432/tcp
+tatkal-booking-service-1        tatkal/booking-service:1.0        "python -m app"          booking-service        11 seconds ago   Up 2 seconds (healthy)    0.0.0.0:8001->8001/tcp, [::]:8001->8001/tcp
+tatkal-inventory-db-1           postgres:16-alpine                "docker-entrypoint.s…"   inventory-db           11 seconds ago   Up 10 seconds (healthy)   5432/tcp
+tatkal-inventory-service-1      tatkal/inventory-service:1.0      "python -m app"          inventory-service      11 seconds ago   Up 5 seconds (healthy)    0.0.0.0:8002->8002/tcp, [::]:8002->8002/tcp
+tatkal-mock-bank-gateway-1      tatkal/mock-bank-gateway:1.0      "python -m app"          mock-bank-gateway      11 seconds ago   Up 10 seconds (healthy)   0.0.0.0:8099->8099/tcp, [::]:8099->8099/tcp
+tatkal-notification-db-1        postgres:16-alpine                "docker-entrypoint.s…"   notification-db        11 seconds ago   Up 10 seconds (healthy)   5432/tcp
+tatkal-notification-service-1   tatkal/notification-service:1.0   "python -m app"          notification-service   11 seconds ago   Up 5 seconds (healthy)    0.0.0.0:8004->8004/tcp, [::]:8004->8004/tcp
+tatkal-payment-db-1             postgres:16-alpine                "docker-entrypoint.s…"   payment-db             11 seconds ago   Up 10 seconds (healthy)   5432/tcp
+tatkal-payment-service-1        tatkal/payment-service:1.0        "python -m app"          payment-service        11 seconds ago   Up 5 seconds (healthy)    0.0.0.0:8003->8003/tcp, [::]:8003->8003/tcp
+
+# exit status 0

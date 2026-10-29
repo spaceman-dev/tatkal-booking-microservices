@@ -1,0 +1,30 @@
+$ echo "== the fix is in docker-compose.yml: db by service name, on a shared network, password from .env"; sed -n "/^  inventory-service:/,/^$/p" docker-compose.yml; echo "== the dev database from the host setup is not needed"; docker compose -f docker-compose.db.yml stop inventory-db; echo "== the compose container"; docker compose ps --format "{{.Name}}\t{{.Status}}\t{{.Networks}}" inventory-service inventory-db; docker compose exec inventory-service printenv DATABASE_URL | sed -E "s#:[^:@]+@#:***@#"; docker compose exec inventory-service getent hosts inventory-db; curl -s localhost:8002/health; echo; echo "== the main flow end to end"; .venv/bin/python -m pytest tests/e2e -q
+# 2026-10-29 10:03:24 IST (UTC 04:33:24), git b118ea2
+
+== the fix is in docker-compose.yml: db by service name, on a shared network, password from .env
+  inventory-service:
+    <<: *service
+    build: services/inventory-service
+    image: tatkal/inventory-service:${IMAGE_TAG:-1.0}
+    environment:
+      DATABASE_URL: postgresql+psycopg://inventory_svc:${INVENTORY_DB_PASSWORD}@inventory-db:5432/inventory_db
+      ADMIN_API_ENABLED: "true"   # dev/demo only: fault injection used by the tests and the demo
+    ports: ["8002:8002"]
+    networks: [services, inventory-data]
+    depends_on:
+      inventory-db: {condition: service_healthy}
+
+== the dev database from the host setup is not needed
+ Container tatkal-inventory-db Stopping 
+ Container tatkal-inventory-db Stopped 
+== the compose container
+tatkal-inventory-db-1	Up 6 minutes (healthy)	tatkal_inventory-data
+tatkal-inventory-service-1	Up 6 minutes (healthy)	tatkal_inventory-data,tatkal_services
+postgresql+psycopg://inventory_svc:***@inventory-db:5432/inventory_db
+172.20.0.2      inventory-db
+{"status":"UP","service":"inventory-service","version":"1.0.0","instance":"48c467598142","checks":{"database":"UP"}}
+== the main flow end to end
+.......                                                                  [100%]
+7 passed in 6.76s
+
+# exit status 0

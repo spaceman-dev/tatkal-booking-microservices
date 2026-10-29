@@ -1,0 +1,40 @@
+$ docker ps -a --filter name=inventory-host-env --format "table {{.Names}}\t{{.Status}}"; docker inspect -f "status={{.State.Status}} exit={{.State.ExitCode}} health={{.State.Health.Status}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}" inventory-host-env; docker logs inventory-host-env 2>&1 | grep -E "WARNING|ERROR" | jq -r "[.ts[11:23], .level, .msg] | @tsv" | cut -c1-100
+# 2026-10-29 10:00:21 IST (UTC 04:30:21), git b118ea2
+
+NAMES                STATUS
+inventory-host-env   Exited (3) 2 minutes ago
+status=exited exit=3 health=unhealthy started=2026-10-29T04:27:34.99878093Z finished=2026-10-29T04:28:05.771288325Z
+04:27:35.652	WARNING	database not reachable yet (attempt 1/30)
+04:27:36.653	WARNING	database not reachable yet (attempt 2/30)
+04:27:37.654	WARNING	database not reachable yet (attempt 3/30)
+04:27:38.655	WARNING	database not reachable yet (attempt 4/30)
+04:27:39.658	WARNING	database not reachable yet (attempt 5/30)
+04:27:40.659	WARNING	database not reachable yet (attempt 6/30)
+04:27:41.661	WARNING	database not reachable yet (attempt 7/30)
+04:27:42.662	WARNING	database not reachable yet (attempt 8/30)
+04:27:43.663	WARNING	database not reachable yet (attempt 9/30)
+04:27:44.664	WARNING	database not reachable yet (attempt 10/30)
+04:27:45.665	WARNING	database not reachable yet (attempt 11/30)
+04:27:46.669	WARNING	database not reachable yet (attempt 12/30)
+04:27:47.670	WARNING	database not reachable yet (attempt 13/30)
+04:27:48.672	WARNING	database not reachable yet (attempt 14/30)
+04:27:49.673	WARNING	database not reachable yet (attempt 15/30)
+04:27:50.675	WARNING	database not reachable yet (attempt 16/30)
+04:27:51.678	WARNING	database not reachable yet (attempt 17/30)
+04:27:52.681	WARNING	database not reachable yet (attempt 18/30)
+04:27:53.685	WARNING	database not reachable yet (attempt 19/30)
+04:27:54.688	WARNING	database not reachable yet (attempt 20/30)
+04:27:55.689	WARNING	database not reachable yet (attempt 21/30)
+04:27:56.694	WARNING	database not reachable yet (attempt 22/30)
+04:27:57.696	WARNING	database not reachable yet (attempt 23/30)
+04:27:58.697	WARNING	database not reachable yet (attempt 24/30)
+04:27:59.698	WARNING	database not reachable yet (attempt 25/30)
+04:28:00.699	WARNING	database not reachable yet (attempt 26/30)
+04:28:01.701	WARNING	database not reachable yet (attempt 27/30)
+04:28:02.702	WARNING	database not reachable yet (attempt 28/30)
+04:28:03.705	WARNING	database not reachable yet (attempt 29/30)
+04:28:04.706	WARNING	database not reachable yet (attempt 30/30)
+04:28:05.708	ERROR	Traceback (most recent call last):\n  File "/usr/local/lib/python3.12/site-packag
+04:28:05.708	ERROR	Application startup failed. Exiting.
+
+# exit status 0

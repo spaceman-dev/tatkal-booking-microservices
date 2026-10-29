@@ -1,0 +1,13 @@
+$ echo "== same image, same env file; only the db host changed and the db network attached"; docker rm -f inventory-host-env; docker run -d --name inventory-host-env --network tatkal-db_default -p 8012:8002 --env-file <(sed "s#@localhost:5442/#@inventory-db:5432/#" services/inventory-service/.env) tatkal/inventory-service:1.0; sleep 8; docker ps --filter name=inventory-host-env --format "table {{.Names}}\t{{.Status}}\t{{.Networks}}"; curl -s localhost:8012/health; echo; echo "log lines saying not reachable: $(docker logs inventory-host-env 2>&1 | grep -c "not reachable")"; docker rm -f inventory-host-env
+# 2026-10-29 10:02:46 IST (UTC 04:32:46), git b118ea2
+
+== same image, same env file; only the db host changed and the db network attached
+inventory-host-env
+1561fe0e2637e3703598491443daa672ff583a2a40351e19021bf43dde15b591
+NAMES                STATUS                   NETWORKS
+inventory-host-env   Up 8 seconds (healthy)   tatkal-db_default
+{"status":"UP","service":"inventory-service","version":"1.0.0","instance":"1561fe0e2637","checks":{"database":"UP"}}
+log lines saying not reachable: 0
+inventory-host-env
+
+# exit status 0

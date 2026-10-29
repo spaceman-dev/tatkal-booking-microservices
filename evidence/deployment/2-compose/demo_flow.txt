@@ -1,0 +1,187 @@
+$ yes "" | bash scripts/demo_flow.sh
+# 2026-10-29 09:54:20 IST (UTC 04:24:20), git d5275cd
+
+
+=== 1. all five services are up
+$ python scripts/stack.py status
+mock-bank-gateway      port  8099  UP      
+inventory-service      port  8002  UP      
+payment-service        port  8003  UP      
+notification-service   port  8004  UP      
+booking-service        port  8001  UP      
+
+=== 2. open a Tatkal quota of 2 seats in 3A on train 12951 for 2027-02-15 (inventory-service)
+$ curl -s -X POST http://localhost:8002/api/v1/inventory -d '{"train_no":"12951","journey_date":"2027-02-15","travel_class":"3A","total_seats":2,"base_fare_paise":249500}'
+{
+    "inventory_id": 69,
+    "train_no": "12951",
+    "journey_date": "2027-02-15",
+    "travel_class": "3A",
+    "total_seats": 2,
+    "available_seats": 2,
+    "base_fare_paise": 249500,
+    "version": 0,
+    "seats_held": 0,
+    "seats_confirmed": 0,
+    "seats_released": 0,
+    "updated_at": "2026-10-29T04:24:21.146755Z"
+}
+
+=== 3. availability and the Tatkal fare (BR3: Rs 2,495 base + Rs 400 charge = Rs 2,895)
+$ curl -s http://localhost:8002/api/v1/trains/12951/availability?journey_date=2027-02-15
+{
+    "train_no": "12951",
+    "journey_date": "2027-02-15",
+    "classes": [
+        {
+            "travel_class": "3A",
+            "total_seats": 2,
+            "available_seats": 2,
+            "base_fare_paise": 249500,
+            "tatkal_charge_paise": 40000,
+            "fare_per_seat_paise": 289500
+        }
+    ]
+}
+
+=== 4. book one seat - Idempotency-Key demo-e125d4-1, correlation id demo-e125d4-happy
+$ curl -s -i -X POST http://localhost:8001/api/v1/bookings -H 'Idempotency-Key: demo-e125d4-1' -H 'X-Correlation-ID: demo-e125d4-happy' -d '{"train_no":"12951","journey_date":"2027-02-15","travel_class":"3A","passengers":[{"name":"Asha Rao","age":34,"gender":"F"}],"contact":{"mobile":"9876543210","email":"asha@example.com"},"payment":{"method":"UPI","payer_ref":"asha@okmock"}}'
+HTTP/1.1 201 Created
+x-correlation-id: demo-e125d4-happy
+{
+    "booking_id": "4d7264a1-412b-4141-8daa-6b9af4e03986",
+    "pnr": "4280949914",
+    "status": "CONFIRMED",
+    "train_no": "12951",
+    "journey_date": "2027-02-15",
+    "travel_class": "3A",
+    "passengers": [
+        {
+            "name": "Asha Rao",
+            "age": 34,
+            "gender": "F"
+        }
+    ],
+    "contact": {
+        "mobile": "9876543210",
+        "email": "asha@example.com"
+    },
+    "amount_paise": 289500,
+    "refund_paise": null,
+    "hold_id": "a1b3217c-970c-48c6-b820-6d10ac1f4c65",
+    "payment_id": "659f7e1a-5832-436f-a52e-8beba9e14328",
+    "failure_reason": null,
+    "created_at": "2026-10-29T04:24:21.253324Z",
+    "updated_at": "2026-10-29T04:24:21.365323Z"
+}
+
+=== 5. the client retries the same request (same key): same answer, nothing booked twice
+HTTP/1.1 201 Created
+idempotent-replayed: true
+booking_id 4d7264a1-412b-4141-8daa-6b9af4e03986  pnr 4280949914
+
+=== 6. the saga log of that booking
+$ curl -s http://localhost:8001/api/v1/bookings/4d7264a1-412b-4141-8daa-6b9af4e03986/saga
+[
+    {
+        "step": "HOLD_SEATS",
+        "action": "EXECUTE",
+        "outcome": "OK",
+        "detail": "hold a1b3217c-970c-48c6-b820-6d10ac1f4c65: 1 seat(s), Rs 2,895.00",
+        "created_at": "2026-10-29T04:24:21.263380Z"
+    },
+    {
+        "step": "CHARGE_PAYMENT",
+        "action": "EXECUTE",
+        "outcome": "OK",
+        "detail": "payment 659f7e1a-5832-436f-a52e-8beba9e14328 captured, Rs 2,895.00",
+        "created_at": "2026-10-29T04:24:21.360553Z"
+    },
+    {
+        "step": "CONFIRM_SEATS",
+        "action": "EXECUTE",
+        "outcome": "OK",
+        "detail": "seats confirmed, PNR 4280949914",
+        "created_at": "2026-10-29T04:24:21.365323Z"
+    }
+]
+
+=== 7. the SMS and e-mail sent asynchronously through the outbox (notification-service)
+$ curl -s localhost:8004/api/v1/notifications?booking_id=4d7264a1-412b-4141-8daa-6b9af4e03986
+EMAIL SENT - Tatkal booking confirmed. PNR 4280949914, train 12951 on 2027-02-15, class 3A, 1 passenger(s). Amount paid Rs 2,895.00.
+SMS SENT - Tatkal booking confirmed. PNR 4280949914, train 12951 on 2027-02-15, class 3A, 1 passenger(s). Amount paid Rs 2,895.00.
+
+=== 8. FAILURE: make the next 2 seat confirmations fail (step 3), then book again
+$ curl -s -X POST http://localhost:8002/api/v1/admin/faults -d '{"operation":"confirm_hold","times":2}'
+{"operation":"confirm_hold","remaining":2,"status_code":500}
+HTTP/1.1 502 Bad Gateway
+content-type: application/problem+json
+{
+    "type": "https://tatkal.example/problems/seat-confirmation-failed",
+    "title": "Booking failed after payment",
+    "status": 502,
+    "detail": "The seats could not be confirmed. Your payment was refunded in full and the seats released.",
+    "instance": "/api/v1/bookings",
+    "code": "SEAT_CONFIRMATION_FAILED",
+    "booking_id": "afb3dfa6-f83b-4d9f-9e0e-9227f3517359",
+    "booking_status": "FAILED",
+    "correlation_id": "demo-e125d4-step3"
+}
+
+=== 9. its saga log: CONFIRM failed, then REFUND and RELEASE ran newest first
+1 HOLD_SEATS      EXECUTE    OK      hold 0affc67b-4e86-4374-bb6d-ae6d047e0510: 1 seat(s), Rs 2,895.00
+2 CHARGE_PAYMENT  EXECUTE    OK      payment a8b682d6-c2ef-452d-98f5-6f4c915ad86a captured, Rs 2,895.00
+3 CONFIRM_SEATS   EXECUTE    FAILED  inventory-service failed: inventory-service returned 500 INJECTED_FAUL
+4 REFUND_PAYMENT  COMPENSATE OK      refunded Rs 2,895.00 on payment a8b682d6-c2ef-452d-98f5-6f4c915ad86a
+5 RELEASE_SEATS   COMPENSATE OK      released 1 seat(s) of hold 0affc67b-4e86-4374-bb6d-ae6d047e0510
+
+$ curl -s localhost:8003/api/v1/payments?booking_id=afb3dfa6-f83b-4d9f-9e0e-9227f3517359
+payment REFUNDED  refund SUCCEEDED 289500 paise
+quota: total 2  available 1  confirmed 1  released 1
+
+=== 10. the same failed request traced through every service by its correlation id
+$ python scripts/trace.py demo-e125d4-step3
+04:24:21.724 INFO    booking-service      cid=demo-e125d4-step booking created  booking_id=afb3dfa6-f83b-4d9f-9e0e-9227f3517359 train_no=12951 journey_date=2027-02-15 sea
+04:24:21.726 INFO    inventory-service    cid=demo-e125d4-step seats held  booking_id=afb3dfa6-f83b-4d9f-9e0e-9227f3517359 hold_id=0affc67b-4e86-4374-bb6d-ae6d047e0510 se
+04:24:21.727 INFO    inventory-service    cid=demo-e125d4-step POST /api/v1/holds -> 201  method=POST path=/api/v1/holds status=201 duration_ms=3.0
+04:24:21.732 INFO    payment-service      cid=demo-e125d4-step charging payer  payment_id=a8b682d6-c2ef-452d-98f5-6f4c915ad86a booking_id=afb3dfa6-f83b-4d9f-9e0e-9227f351
+04:24:21.814 INFO    mock-bank-gateway    cid=demo-e125d4-step charge captured  charge_id=ch_46f900281400491fa303 amount_paise=289500 merchant_reference=afb3dfa6-f83b-4d9
+04:24:21.814 INFO    mock-bank-gateway    cid=demo-e125d4-step POST /gateway/v1/charges -> 200  method=POST path=/gateway/v1/charges status=200 duration_ms=80.9
+04:24:21.817 INFO    payment-service      cid=demo-e125d4-step payment captured  payment_id=a8b682d6-c2ef-452d-98f5-6f4c915ad86a status=CAPTURED gateway_attempts=1
+04:24:21.819 INFO    payment-service      cid=demo-e125d4-step POST /api/v1/payments -> 201  method=POST path=/api/v1/payments status=201 duration_ms=89.3
+04:24:21.821 WARNING inventory-service    cid=demo-e125d4-step injected fault triggered  operation=confirm_hold status_code=500
+04:24:21.822 WARNING booking-service      cid=demo-e125d4-step call to inventory-service failed, retrying  path=/api/v1/holds/0affc67b-4e86-4374-bb6d-ae6d047e0510/confirm
+04:24:21.822 WARNING inventory-service    cid=demo-e125d4-step request failed: INJECTED_FAULT  error_code=INJECTED_FAULT
+04:24:21.822 INFO    inventory-service    cid=demo-e125d4-step POST /api/v1/holds/0affc67b-4e86-4374-bb6d-ae6d047e0510/confirm -> 500  method=POST path=/api/v1/holds/0aff
+04:24:21.976 WARNING inventory-service    cid=demo-e125d4-step injected fault triggered  operation=confirm_hold status_code=500
+04:24:21.976 WARNING inventory-service    cid=demo-e125d4-step request failed: INJECTED_FAULT  error_code=INJECTED_FAULT
+04:24:21.976 INFO    inventory-service    cid=demo-e125d4-step POST /api/v1/holds/0affc67b-4e86-4374-bb6d-ae6d047e0510/confirm -> 500  method=POST path=/api/v1/holds/0aff
+04:24:21.978 WARNING booking-service      cid=demo-e125d4-step saga step failed, compensating  booking_id=afb3dfa6-f83b-4d9f-9e0e-9227f3517359 reason=SEAT_CONFIRMATION_FA
+04:24:21.983 INFO    payment-service      cid=demo-e125d4-step GET /api/v1/payments -> 200  method=GET path=/api/v1/payments status=200 duration_ms=2.5
+04:24:22.068 INFO    mock-bank-gateway    cid=demo-e125d4-step refund processed  refund_id=rf_4dc8fc5dceef41a28121 charge_id=ch_46f900281400491fa303 amount_paise=289500
+04:24:22.068 INFO    mock-bank-gateway    cid=demo-e125d4-step POST /gateway/v1/refunds -> 200  method=POST path=/gateway/v1/refunds status=200 duration_ms=81.3
+04:24:22.070 INFO    payment-service      cid=demo-e125d4-step payment refunded  payment_id=a8b682d6-c2ef-452d-98f5-6f4c915ad86a amount_paise=289500 reason=SEAT_CONFIRMAT
+04:24:22.072 INFO    payment-service      cid=demo-e125d4-step POST /api/v1/payments/a8b682d6-c2ef-452d-98f5-6f4c915ad86a/refund -> 200  method=POST path=/api/v1/payments
+04:24:22.077 INFO    inventory-service    cid=demo-e125d4-step hold released  hold_id=0affc67b-4e86-4374-bb6d-ae6d047e0510 booking_id=afb3dfa6-f83b-4d9f-9e0e-9227f3517359
+04:24:22.077 INFO    inventory-service    cid=demo-e125d4-step POST /api/v1/holds/0affc67b-4e86-4374-bb6d-ae6d047e0510/release -> 200  method=POST path=/api/v1/holds/0aff
+04:24:22.081 INFO    booking-service      cid=demo-e125d4-step compensation finished, booking failed cleanly  booking_id=afb3dfa6-f83b-4d9f-9e0e-9227f3517359
+04:24:22.082 INFO    booking-service      cid=demo-e125d4-step POST /api/v1/bookings -> 502  method=POST path=/api/v1/bookings status=502 duration_ms=363.1
+
+=== 11. book the last seat, then one more: sold out
+last seat: HTTP 201
+{
+    "type": "https://tatkal.example/problems/seats-unavailable",
+    "title": "Not enough seats",
+    "status": 409,
+    "detail": "Requested 1 seat(s) in 3A on train 12951 for 2027-02-15, only 0 left",
+    "instance": "/api/v1/bookings",
+    "code": "SEATS_UNAVAILABLE",
+    "booking_id": "bc3e1e2d-ce72-4c47-9f22-fa3ede53095a",
+    "booking_status": "FAILED",
+    "correlation_id": "e878c4d6f5184a0faaebb829014eb903"
+}
+
+=== done
+yes: stdout: Broken pipe
+
+# exit status 0

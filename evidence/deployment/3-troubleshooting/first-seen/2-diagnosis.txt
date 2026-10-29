@@ -1,0 +1,35 @@
+== 2026-10-29 09:11:43 IST
+$ docker inspect inventory-smoke --format "status={{.State.Status}} exit={{.State.ExitCode}} health={{.State.Health.Status}}"
+status=exited exit=3 health=unhealthy
+
+$ docker inspect inventory-smoke --format "{{range .Config.Env}}{{println .}}{{end}}" | grep DATABASE_URL
+DATABASE_URL=postgresql+psycopg://inventory_svc:***@localhost:5442/inventory_db
+
+$ docker compose -f docker-compose.db.yml ps inventory-db
+NAME                  STATUS                        PORTS
+tatkal-inventory-db   Up About a minute (healthy)   0.0.0.0:5442->5432/tcp, [::]:5442->5432/tcp
+
+# the same connection, made from inside a container built from the same image:
+$ docker run --rm --env-file services/inventory-service/.env --entrypoint python tatkal/inventory-service:1.0 -c "<connect with DATABASE_URL, print the error>"
+hostname of this container: 3803817a1153
+OperationalError: connection failed: connection to server at "127.0.0.1", port 5442 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Multiple connection attempts failed. All failures were:
+- host: 'localhost', port: '5442', hostaddr: '::1': connection failed: connection to server at "::1", port 5442 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+- host: 'localhost', port: '5442', hostaddr: '127.0.0.1': connection failed: connection to server at "127.0.0.1", port 5442 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+$ docker inspect tatkal-inventory-db --format "{{range \$net, \$cfg := .NetworkSettings.Networks}}{{\$net}} {{\$cfg.IPAddress}} aliases={{\$cfg.DNSNames}}{{end}}"
+tatkal-db_default 172.18.0.3 aliases=[tatkal-inventory-db inventory-db f30248523ed8]
+
+== 09:11:58  try the database by its service name on the database network
+$ docker rm inventory-smoke
+inventory-smoke
+$ docker run -d --name inventory-smoke --network tatkal-db_default -p 8002:8002 --env-file services/inventory-service/.env -e DATABASE_URL=postgresql+psycopg://inventory_svc:***@inventory-db:5432/inventory_db tatkal/inventory-service:1.0
+a29fb820167b4e165ac34b1aea679960f4a18670ec7466d7cf128bfb5e383673
+$ docker ps --filter name=inventory-smoke
+NAMES             STATUS                    PORTS
+inventory-smoke   Up 15 seconds (healthy)   0.0.0.0:8002->8002/tcp, [::]:8002->8002/tcp
+$ curl -s localhost:8002/health
+{"status":"UP","service":"inventory-service","version":"1.0.0","instance":"a29fb820167b","checks":{"database":"UP"}}

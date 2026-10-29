@@ -1,0 +1,17 @@
+$ docker compose -f docker-compose.db.yml up -d --wait inventory-db; grep -E "^(PORT|DATABASE_URL)=" services/inventory-service/.env | sed -E "s#:[^:@]+@#:***@#"; docker run -d --name inventory-host-env -p 8012:8002 --env-file services/inventory-service/.env tatkal/inventory-service:1.0; sleep 8; docker ps -a --filter name=inventory-host-env --format "table {{.Names}}\t{{.Status}}"; curl -s -m 3 localhost:8012/health; echo "curl exit code $?"
+# 2026-10-29 09:57:28 IST (UTC 04:27:28), git b118ea2
+
+ Container tatkal-inventory-db Recreate 
+ Container tatkal-inventory-db Recreated 
+ Container tatkal-inventory-db Starting 
+ Container tatkal-inventory-db Started 
+ Container tatkal-inventory-db Waiting 
+ Container tatkal-inventory-db Healthy 
+PORT=8002
+DATABASE_URL=postgresql+psycopg://inventory_svc:***@localhost:5442/inventory_db
+d5aebb3732c3448caa63e558d5f4df1c417240d344bc7703510ad390d613528f
+NAMES                STATUS
+inventory-host-env   Up 8 seconds (health: starting)
+curl exit code 52
+
+# exit status 0

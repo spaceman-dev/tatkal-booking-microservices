@@ -1,0 +1,163 @@
+$ bash scripts/restart_check.sh
+# 2026-10-29 09:56:33 IST (UTC 04:26:33), git b118ea2
+
+== newest confirmed booking before the restart
+892cefe0-3ebf-46a4-a5fb-ac944ee29a90 CONFIRMED PNR 8394445298
+
+== docker compose down   (containers and networks are removed, the volumes stay)
+ Container tatkal-booking-service-1 Stopping 
+ Container tatkal-booking-service-1 Stopped 
+ Container tatkal-booking-service-1 Removing 
+ Container tatkal-booking-service-1 Removed 
+ Container tatkal-inventory-service-1 Stopping 
+ Container tatkal-payment-service-1 Stopping 
+ Container tatkal-notification-service-1 Stopping 
+ Container tatkal-booking-db-1 Stopping 
+ Container tatkal-booking-db-1 Stopped 
+ Container tatkal-booking-db-1 Removing 
+ Container tatkal-booking-db-1 Removed 
+ Container tatkal-notification-service-1 Stopped 
+ Container tatkal-notification-service-1 Removing 
+ Container tatkal-inventory-service-1 Stopped 
+ Container tatkal-inventory-service-1 Removing 
+ Container tatkal-notification-service-1 Removed 
+ Container tatkal-notification-db-1 Stopping 
+ Container tatkal-inventory-service-1 Removed 
+ Container tatkal-inventory-db-1 Stopping 
+ Container tatkal-payment-service-1 Stopped 
+ Container tatkal-payment-service-1 Removing 
+ Container tatkal-notification-db-1 Stopped 
+ Container tatkal-notification-db-1 Removing 
+ Container tatkal-payment-service-1 Removed 
+ Container tatkal-mock-bank-gateway-1 Stopping 
+ Container tatkal-payment-db-1 Stopping 
+ Container tatkal-notification-db-1 Removed 
+ Container tatkal-inventory-db-1 Stopped 
+ Container tatkal-inventory-db-1 Removing 
+ Container tatkal-inventory-db-1 Removed 
+ Container tatkal-payment-db-1 Stopped 
+ Container tatkal-payment-db-1 Removing 
+ Container tatkal-payment-db-1 Removed 
+ Container tatkal-mock-bank-gateway-1 Stopped 
+ Container tatkal-mock-bank-gateway-1 Removing 
+ Container tatkal-mock-bank-gateway-1 Removed 
+ Network tatkal_bank Removing 
+ Network tatkal_inventory-data Removing 
+ Network tatkal_payment-data Removing 
+ Network tatkal_notification-data Removing 
+ Network tatkal_booking-data Removing 
+ Network tatkal_services Removing 
+ Network tatkal_notification-data Removed 
+ Network tatkal_payment-data Removed 
+ Network tatkal_bank Removed 
+ Network tatkal_booking-data Removed 
+ Network tatkal_services Removed 
+ Network tatkal_inventory-data Removed 
+DRIVER    VOLUME NAME
+local     tatkal_booking-db-data
+local     tatkal_inventory-db-data
+local     tatkal_notification-db-data
+local     tatkal_payment-db-data
+
+== docker compose up -d --wait
+ Network tatkal_services Creating 
+ Network tatkal_services Created 
+ Network tatkal_inventory-data Creating 
+ Network tatkal_inventory-data Created 
+ Network tatkal_bank Creating 
+ Network tatkal_bank Created 
+ Network tatkal_payment-data Creating 
+ Network tatkal_payment-data Created 
+ Network tatkal_booking-data Creating 
+ Network tatkal_booking-data Created 
+ Network tatkal_notification-data Creating 
+ Network tatkal_notification-data Created 
+ Container tatkal-booking-db-1 Creating 
+ Container tatkal-mock-bank-gateway-1 Creating 
+ Container tatkal-inventory-db-1 Creating 
+ Container tatkal-payment-db-1 Creating 
+ Container tatkal-notification-db-1 Creating 
+ Container tatkal-payment-db-1 Created 
+ Container tatkal-notification-db-1 Created 
+ Container tatkal-notification-service-1 Creating 
+ Container tatkal-mock-bank-gateway-1 Created 
+ Container tatkal-payment-service-1 Creating 
+ Container tatkal-inventory-db-1 Created 
+ Container tatkal-inventory-service-1 Creating 
+ Container tatkal-booking-db-1 Created 
+ Container tatkal-notification-service-1 Created 
+ Container tatkal-inventory-service-1 Created 
+ Container tatkal-payment-service-1 Created 
+ Container tatkal-booking-service-1 Creating 
+ Container tatkal-booking-service-1 Created 
+ Container tatkal-booking-db-1 Starting 
+ Container tatkal-notification-db-1 Starting 
+ Container tatkal-inventory-db-1 Starting 
+ Container tatkal-mock-bank-gateway-1 Starting 
+ Container tatkal-payment-db-1 Starting 
+ Container tatkal-notification-db-1 Started 
+ Container tatkal-notification-db-1 Waiting 
+ Container tatkal-payment-db-1 Started 
+ Container tatkal-inventory-db-1 Started 
+ Container tatkal-booking-db-1 Started 
+ Container tatkal-inventory-db-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Started 
+ Container tatkal-payment-db-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Healthy 
+ Container tatkal-payment-db-1 Healthy 
+ Container tatkal-payment-service-1 Starting 
+ Container tatkal-payment-service-1 Started 
+ Container tatkal-notification-db-1 Healthy 
+ Container tatkal-notification-service-1 Starting 
+ Container tatkal-inventory-db-1 Healthy 
+ Container tatkal-inventory-service-1 Starting 
+ Container tatkal-notification-service-1 Started 
+ Container tatkal-inventory-service-1 Started 
+ Container tatkal-inventory-service-1 Waiting 
+ Container tatkal-payment-service-1 Waiting 
+ Container tatkal-notification-service-1 Waiting 
+ Container tatkal-booking-db-1 Waiting 
+ Container tatkal-booking-db-1 Healthy 
+ Container tatkal-payment-service-1 Healthy 
+ Container tatkal-inventory-service-1 Healthy 
+ Container tatkal-notification-service-1 Healthy 
+ Container tatkal-booking-service-1 Starting 
+ Container tatkal-booking-service-1 Started 
+ Container tatkal-inventory-db-1 Waiting 
+ Container tatkal-booking-db-1 Waiting 
+ Container tatkal-notification-db-1 Waiting 
+ Container tatkal-booking-service-1 Waiting 
+ Container tatkal-notification-service-1 Waiting 
+ Container tatkal-payment-db-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Waiting 
+ Container tatkal-payment-service-1 Waiting 
+ Container tatkal-inventory-service-1 Waiting 
+ Container tatkal-inventory-db-1 Healthy 
+ Container tatkal-notification-db-1 Healthy 
+ Container tatkal-payment-service-1 Healthy 
+ Container tatkal-inventory-service-1 Healthy 
+ Container tatkal-booking-db-1 Healthy 
+ Container tatkal-notification-service-1 Healthy 
+ Container tatkal-payment-db-1 Healthy 
+ Container tatkal-mock-bank-gateway-1 Healthy 
+ Container tatkal-booking-service-1 Healthy 
+SERVICE                STATUS
+booking-db             Up 10 seconds (healthy)
+booking-service        Up 2 seconds (healthy)
+inventory-db           Up 10 seconds (healthy)
+inventory-service      Up 5 seconds (healthy)
+mock-bank-gateway      Up 10 seconds (healthy)
+notification-db        Up 10 seconds (healthy)
+notification-service   Up 5 seconds (healthy)
+payment-db             Up 10 seconds (healthy)
+payment-service        Up 5 seconds (healthy)
+
+== newest confirmed booking after the restart
+892cefe0-3ebf-46a4-a5fb-ac944ee29a90 CONFIRMED PNR 8394445298
+
+== the main flow still works
+.......                                                                  [100%]
+7 passed in 6.19s
+
+# exit status 0

@@ -1,0 +1,22 @@
+$ python scripts/trace.py demo-e125d4-happy | cut -c1-200
+# 2026-10-29 09:54:38 IST (UTC 04:24:38), git d5275cd
+
+04:24:21.255 INFO    booking-service      cid=demo-e125d4-happ booking created  booking_id=4d7264a1-412b-4141-8daa-6b9af4e03986 train_no=12951 journey_date=2027-02-15 seats=1
+04:24:21.260 INFO    inventory-service    cid=demo-e125d4-happ seats held  booking_id=4d7264a1-412b-4141-8daa-6b9af4e03986 hold_id=a1b3217c-970c-48c6-b820-6d10ac1f4c65 seat_count=1 seats_left=1 strate
+04:24:21.262 INFO    inventory-service    cid=demo-e125d4-happ POST /api/v1/holds -> 201  method=POST path=/api/v1/holds status=201 duration_ms=4.7
+04:24:21.270 INFO    payment-service      cid=demo-e125d4-happ charging payer  payment_id=659f7e1a-5832-436f-a52e-8beba9e14328 booking_id=4d7264a1-412b-4141-8daa-6b9af4e03986 amount_paise=289500 payer
+04:24:21.354 INFO    mock-bank-gateway    cid=demo-e125d4-happ charge captured  charge_id=ch_30196e169f1445218547 amount_paise=289500 merchant_reference=4d7264a1-412b-4141-8daa-6b9af4e03986
+04:24:21.354 INFO    mock-bank-gateway    cid=demo-e125d4-happ POST /gateway/v1/charges -> 200  method=POST path=/gateway/v1/charges status=200 duration_ms=80.9
+04:24:21.358 INFO    payment-service      cid=demo-e125d4-happ payment captured  payment_id=659f7e1a-5832-436f-a52e-8beba9e14328 status=CAPTURED gateway_attempts=1
+04:24:21.359 INFO    payment-service      cid=demo-e125d4-happ POST /api/v1/payments -> 201  method=POST path=/api/v1/payments status=201 duration_ms=94.2
+04:24:21.364 INFO    inventory-service    cid=demo-e125d4-happ hold confirmed  hold_id=a1b3217c-970c-48c6-b820-6d10ac1f4c65 booking_id=4d7264a1-412b-4141-8daa-6b9af4e03986
+04:24:21.364 INFO    inventory-service    cid=demo-e125d4-happ POST /api/v1/holds/a1b3217c-970c-48c6-b820-6d10ac1f4c65/confirm -> 200  method=POST path=/api/v1/holds/a1b3217c-970c-48c6-b820-6d10ac1f4c
+04:24:21.366 INFO    booking-service      cid=demo-e125d4-happ booking confirmed  booking_id=4d7264a1-412b-4141-8daa-6b9af4e03986 pnr=4280949914
+04:24:21.368 INFO    booking-service      cid=demo-e125d4-happ POST /api/v1/bookings -> 201  method=POST path=/api/v1/bookings status=201 duration_ms=119.6
+04:24:21.600 INFO    notification-service cid=demo-e125d4-happ SMS sent to 98XXXXXX10  channel=SMS recipient=98XXXXXX10 text=Tatkal booking confirmed. PNR 4280949914, train 12951 on 2027-02-15, class 
+04:24:21.632 INFO    notification-service cid=demo-e125d4-happ EMAIL sent to a***@example.com  channel=EMAIL recipient=a***@example.com text=Tatkal booking confirmed. PNR 4280949914, train 12951 on 20
+04:24:21.634 INFO    notification-service cid=demo-e125d4-happ notification delivered  event_id=5b275698-69bd-4cc0-b01d-e71808ba8b31 event_type=BOOKING_CONFIRMED booking_id=4d7264a1-412b-4141-8daa-6b9
+04:24:21.635 INFO    notification-service cid=demo-e125d4-happ POST /api/v1/notifications -> 201  method=POST path=/api/v1/notifications status=201 duration_ms=70.7
+04:24:21.636 INFO    booking-service      cid=demo-e125d4-happ outbox event delivered  event_id=5b275698-69bd-4cc0-b01d-e71808ba8b31 event_type=BOOKING_CONFIRMED booking_id=4d7264a1-412b-4141-8daa-6b9
+
+# exit status 0

@@ -1,0 +1,83 @@
+== 2026-10-29 09:10:23 IST  git 5e677ce
+$ docker compose -f docker-compose.db.yml up -d --wait
+ Network tatkal-db_default Creating 
+ Network tatkal-db_default Created 
+ Container tatkal-inventory-db Creating 
+ Container tatkal-booking-db Creating 
+ Container tatkal-notification-db Creating 
+ Container tatkal-payment-db Creating 
+ Container tatkal-inventory-db Created 
+ Container tatkal-booking-db Created 
+ Container tatkal-notification-db Created 
+ Container tatkal-payment-db Created 
+ Container tatkal-booking-db Starting 
+ Container tatkal-notification-db Starting 
+ Container tatkal-payment-db Starting 
+ Container tatkal-inventory-db Starting 
+ Container tatkal-booking-db Started 
+ Container tatkal-inventory-db Started 
+ Container tatkal-notification-db Started 
+ Container tatkal-payment-db Started 
+ Container tatkal-payment-db Waiting 
+ Container tatkal-notification-db Waiting 
+ Container tatkal-booking-db Waiting 
+ Container tatkal-inventory-db Waiting 
+ Container tatkal-booking-db Healthy 
+ Container tatkal-inventory-db Healthy 
+ Container tatkal-payment-db Healthy 
+ Container tatkal-notification-db Healthy 
+
+$ grep -v PASSWORD services/inventory-service/.env | grep -E "^(PORT|DATABASE_URL)" | sed "s/:[^:@]*@/:***@/"
+PORT=8002
+DATABASE_URL=postgresql+psycopg://inventory_svc:***@localhost:5442/inventory_db
+
+$ docker run -d --name inventory-smoke -p 8002:8002 --env-file services/inventory-service/.env tatkal/inventory-service:1.0
+a448561789097fde5578dd8e5e9c25165f3ffcb5a0ec2e0fa72ced9a7b4428fb
+
+$ docker ps -a --filter name=inventory-smoke
+NAMES             STATUS                            PORTS
+inventory-smoke   Up 8 seconds (health: starting)   0.0.0.0:8002->8002/tcp, [::]:8002->8002/tcp
+
+$ curl -s localhost:8002/health
+(no answer: curl exit 52)
+
+== 09:11:17
+$ docker ps -a --filter name=inventory-smoke
+NAMES             STATUS
+inventory-smoke   Exited (3) 16 seconds ago
+
+$ docker logs inventory-smoke
+{"ts": "2026-10-29T03:40:30.452+00:00", "level": "INFO", "service": "inventory-service", "correlation_id": "-", "logger": "uvicorn.error", "msg": "Started server process [1]"}
+{"ts": "2026-10-29T03:40:30.452+00:00", "level": "INFO", "service": "inventory-service", "correlation_id": "-", "logger": "uvicorn.error", "msg": "Waiting for application startup."}
+{"ts": "2026-10-29T03:40:30.458+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 1/30)"}
+{"ts": "2026-10-29T03:40:31.468+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 2/30)"}
+{"ts": "2026-10-29T03:40:32.476+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 3/30)"}
+{"ts": "2026-10-29T03:40:33.480+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 4/30)"}
+{"ts": "2026-10-29T03:40:34.485+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 5/30)"}
+{"ts": "2026-10-29T03:40:35.493+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 6/30)"}
+{"ts": "2026-10-29T03:40:36.499+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 7/30)"}
+{"ts": "2026-10-29T03:40:37.510+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 8/30)"}
+{"ts": "2026-10-29T03:40:38.512+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 9/30)"}
+{"ts": "2026-10-29T03:40:39.516+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 10/30)"}
+{"ts": "2026-10-29T03:40:40.522+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 11/30)"}
+{"ts": "2026-10-29T03:40:41.527+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 12/30)"}
+{"ts": "2026-10-29T03:40:42.541+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 13/30)"}
+{"ts": "2026-10-29T03:40:43.550+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 14/30)"}
+{"ts": "2026-10-29T03:40:44.553+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 15/30)"}
+{"ts": "2026-10-29T03:40:45.558+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 16/30)"}
+{"ts": "2026-10-29T03:40:46.562+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 17/30)"}
+{"ts": "2026-10-29T03:40:47.564+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 18/30)"}
+{"ts": "2026-10-29T03:40:48.573+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 19/30)"}
+{"ts": "2026-10-29T03:40:49.577+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 20/30)"}
+{"ts": "2026-10-29T03:40:50.579+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 21/30)"}
+{"ts": "2026-10-29T03:40:51.583+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 22/30)"}
+{"ts": "2026-10-29T03:40:52.585+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 23/30)"}
+{"ts": "2026-10-29T03:40:53.591+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 24/30)"}
+{"ts": "2026-10-29T03:40:54.594+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 25/30)"}
+{"ts": "2026-10-29T03:40:55.600+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 26/30)"}
+{"ts": "2026-10-29T03:40:56.605+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 27/30)"}
+{"ts": "2026-10-29T03:40:57.615+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 28/30)"}
+{"ts": "2026-10-29T03:40:58.624+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 29/30)"}
+{"ts": "2026-10-29T03:40:59.628+00:00", "level": "WARNING", "service": "inventory-service", "correlation_id": "-", "logger": "app.core.db", "msg": "database not reachable yet (attempt 30/30)"}
+{"ts": "2026-10-29T03:41:00.638+00:00", "level": "ERROR", "service": "inventory-service", "correlation_id": "-", "logger": "uvicorn.error", "msg": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.12/site-packag
+{"ts": "2026-10-29T03:41:00.638+00:00", "level": "ERROR", "service": "inventory-service", "correlation_id": "-", "logger": "uvicorn.error", "msg": "Application startup failed. Exiting."}

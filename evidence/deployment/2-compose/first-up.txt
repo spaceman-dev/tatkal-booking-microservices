@@ -1,0 +1,395 @@
+== 2026-10-29 09:15:09 IST
+$ docker compose up --build -d --wait
+time="2026-10-29T09:15:09+05:30" level=warning msg="Docker Compose requires buildx plugin to be installed"
+ Image tatkal/notification-service:1.0 Building 
+ Image tatkal/inventory-service:1.0 Building 
+ Image tatkal/mock-bank-gateway:1.0 Building 
+ Image tatkal/mock-bank-gateway:1.0 Building 
+ Image tatkal/notification-service:1.0 Building 
+ Image tatkal/inventory-service:1.0 Building 
+Sending build context to Docker daemon  10.16kB
+Sending build context to Docker daemon  13.43kB
+Step 1/15 : FROM python:3.12-slim
+Sending build context to Docker daemon  18.46kB
+Step 1/15 : FROM python:3.12-slim
+Step 1/15 : FROM python:3.12-slim
+ ---> 78387bc3881b
+Step 2/15 : ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PIP_NO_CACHE_DIR=1     PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> 78387bc3881b
+Step 2/15 : ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PIP_NO_CACHE_DIR=1     PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> 78387bc3881b
+Step 2/15 : ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PIP_NO_CACHE_DIR=1     PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Using cache
+ ---> 98c08d466f61
+Step 3/15 : WORKDIR /app
+ ---> Using cache
+ ---> 98c08d466f61
+Step 3/15 : WORKDIR /app
+ ---> Using cache
+ ---> 08d28aecc20a
+Step 4/15 : RUN useradd --system --uid 10001 --no-create-home tatkal
+ ---> Using cache
+ ---> 98c08d466f61
+Step 3/15 : WORKDIR /app
+ ---> Using cache
+ ---> 08d28aecc20a
+Step 4/15 : RUN useradd --system --uid 10001 --no-create-home tatkal
+ ---> Using cache
+ ---> 4d0e34acf9f4
+Step 5/15 : COPY requirements.txt .
+ ---> Using cache
+ ---> 08d28aecc20a
+Step 4/15 : RUN useradd --system --uid 10001 --no-create-home tatkal
+ ---> Using cache
+ ---> 4d0e34acf9f4
+Step 5/15 : COPY requirements.txt .
+ ---> Using cache
+ ---> 4d0e34acf9f4
+Step 5/15 : COPY requirements.txt .
+ ---> Using cache
+ ---> c2ab23f5b79e
+Step 6/15 : RUN pip install -r requirements.txt
+ ---> Using cache
+ ---> 44b8c1c9e689
+Step 6/15 : RUN pip install -r requirements.txt
+ ---> Using cache
+ ---> 8ae341da11c9
+Step 7/15 : COPY app ./app
+ ---> Using cache
+ ---> 44b8c1c9e689
+Step 6/15 : RUN pip install -r requirements.txt
+ ---> Using cache
+ ---> 142abc1614b0
+Step 7/15 : COPY app ./app
+ ---> Using cache
+ ---> 8631dbf07e7e
+Step 8/15 : USER tatkal
+ ---> Using cache
+ ---> 142abc1614b0
+Step 7/15 : COPY app ./app
+ ---> Using cache
+ ---> 5eb18343bc2d
+Step 9/15 : ARG APP_VERSION=1.0.0
+ ---> Using cache
+ ---> cf6087f0e382
+Step 10/15 : ENV APP_VERSION=${APP_VERSION}     HOST=0.0.0.0     PORT=8099
+ ---> Using cache
+ ---> e744249208be
+Step 11/15 : EXPOSE 8099
+ ---> Using cache
+ ---> 00d410b6be67
+Step 12/15 : LABEL org.opencontainers.image.title="mock-bank-gateway"       org.opencontainers.image.version="${APP_VERSION}"       org.opencontainers.image.source="https://github.com/spaceman-dev/tatkal-booking-microservices"
+ ---> Using cache
+ ---> c5fbe9216372
+Step 13/15 : HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --start-interval=2s --retries=3     CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ['PORT'], timeout=2)"]
+ ---> Running in 38366804633d
+ ---> Removed intermediate container 38366804633d
+ ---> d846bf383c26
+Step 14/15 : CMD ["python", "-m", "app"]
+ ---> Running in 31e09c1366ad
+ ---> 86f6e5c114d4
+Step 8/15 : USER tatkal
+ ---> a66c3628fcdf
+Step 8/15 : USER tatkal
+ ---> Running in c41b02cb86e4
+ ---> Running in 9a4b9aade8e3
+ ---> Removed intermediate container 31e09c1366ad
+ ---> ef6754337871
+Step 15/15 : LABEL com.docker.compose.image.builder=classic
+ ---> Running in 27c9353a9c0f
+ ---> Removed intermediate container 9a4b9aade8e3
+ ---> 918f94d74507
+Step 9/15 : ARG APP_VERSION=1.0.0
+ ---> Removed intermediate container c41b02cb86e4
+ ---> 8da192869cf1
+Step 9/15 : ARG APP_VERSION=1.0.0
+ ---> Running in b68f889bc5fd
+ ---> Running in f613e4ee9db9
+ ---> Removed intermediate container 27c9353a9c0f
+ ---> 0ad0f730123d
+Successfully built 0ad0f730123d
+Successfully tagged tatkal/mock-bank-gateway:1.0
+ Image tatkal/mock-bank-gateway:1.0 Built 
+ Image tatkal/mock-bank-gateway:1.0 Built 
+ Image tatkal/payment-service:1.0 Building 
+ Image tatkal/payment-service:1.0 Building 
+Sending build context to Docker daemon  20.27kB
+Step 1/15 : FROM python:3.12-slim
+ ---> 78387bc3881b
+Step 2/15 : ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PIP_NO_CACHE_DIR=1     PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Removed intermediate container f613e4ee9db9
+ ---> bd748432e77b
+Step 10/15 : ENV APP_VERSION=${APP_VERSION}     HOST=0.0.0.0     PORT=8002
+ ---> Removed intermediate container b68f889bc5fd
+ ---> 56100505a04a
+Step 10/15 : ENV APP_VERSION=${APP_VERSION}     HOST=0.0.0.0     PORT=8004
+ ---> Using cache
+ ---> 98c08d466f61
+Step 3/15 : WORKDIR /app
+ ---> Using cache
+ ---> 08d28aecc20a
+Step 4/15 : RUN useradd --system --uid 10001 --no-create-home tatkal
+ ---> Using cache
+ ---> 4d0e34acf9f4
+Step 5/15 : COPY requirements.txt .
+ ---> Using cache
+ ---> 44b8c1c9e689
+Step 6/15 : RUN pip install -r requirements.txt
+ ---> Using cache
+ ---> 142abc1614b0
+Step 7/15 : COPY app ./app
+ ---> Running in ab7acf00a6f2
+ ---> Running in fa1228732dc6
+ ---> Removed intermediate container fa1228732dc6
+ ---> c74427dd4b21
+Step 11/15 : EXPOSE 8002
+ ---> Removed intermediate container ab7acf00a6f2
+ ---> 6a3f4c0fdc93
+Step 11/15 : EXPOSE 8004
+ ---> Running in 57b1fd5da65d
+ ---> Running in d76110ea65c7
+ ---> 94a9210af14d
+Step 8/15 : USER tatkal
+ ---> Running in 8efa3963d5cd
+ ---> Removed intermediate container d76110ea65c7
+ ---> 54bcdff49e48
+Step 12/15 : LABEL org.opencontainers.image.title="notification-service"       org.opencontainers.image.version="${APP_VERSION}"       org.opencontainers.image.source="https://github.com/spaceman-dev/tatkal-booking-microservices"
+ ---> Removed intermediate container 57b1fd5da65d
+ ---> 72b3d34434ec
+Step 12/15 : LABEL org.opencontainers.image.title="inventory-service"       org.opencontainers.image.version="${APP_VERSION}"       org.opencontainers.image.source="https://github.com/spaceman-dev/tatkal-booking-microservices"
+ ---> Running in e55fee4ce9b7
+ ---> Running in 21cb2de91939
+ ---> Removed intermediate container 8efa3963d5cd
+ ---> 8da7eb496447
+Step 9/15 : ARG APP_VERSION=1.0.0
+ ---> Running in d43318fd8734
+ ---> Removed intermediate container e55fee4ce9b7
+ ---> 1d626e2dd9c1
+Step 13/15 : HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --start-interval=2s --retries=3     CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ['PORT'], timeout=2)"]
+ ---> Removed intermediate container 21cb2de91939
+ ---> 5bb0361aa505
+Step 13/15 : HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --start-interval=2s --retries=3     CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ['PORT'], timeout=2)"]
+ ---> Running in b3eca1f40a36
+ ---> Removed intermediate container d43318fd8734
+ ---> a6b957dbf032
+Step 10/15 : ENV APP_VERSION=${APP_VERSION}     HOST=0.0.0.0     PORT=8003
+ ---> Running in 8ffbb02085d4
+ ---> Running in d78f821db2a0
+ ---> Removed intermediate container b3eca1f40a36
+ ---> 1d95ee1afbce
+Step 14/15 : CMD ["python", "-m", "app"]
+ ---> Removed intermediate container 8ffbb02085d4
+ ---> 19facaec7bbd
+Step 14/15 : CMD ["python", "-m", "app"]
+ ---> Running in 95e6efafd0d7
+ ---> Removed intermediate container d78f821db2a0
+ ---> 78b2a45cf0dc
+Step 11/15 : EXPOSE 8003
+ ---> Running in 0f77187ed98a
+ ---> Running in 3304236fcce3
+ ---> Removed intermediate container 95e6efafd0d7
+ ---> 85c654fcb1b2
+Step 15/15 : LABEL com.docker.compose.image.builder=classic
+ ---> Running in 988a85f3db9b
+ ---> Removed intermediate container 0f77187ed98a
+ ---> 2f6d100e9879
+Step 15/15 : LABEL com.docker.compose.image.builder=classic
+ ---> Removed intermediate container 3304236fcce3
+ ---> c4e40ea888a9
+Step 12/15 : LABEL org.opencontainers.image.title="payment-service"       org.opencontainers.image.version="${APP_VERSION}"       org.opencontainers.image.source="https://github.com/spaceman-dev/tatkal-booking-microservices"
+ ---> Running in 1ebb878dfd9d
+ ---> Running in 23279b6ab0ac
+ ---> Removed intermediate container 1ebb878dfd9d
+ ---> d33e593c7a2b
+Successfully built d33e593c7a2b
+ ---> Removed intermediate container 988a85f3db9b
+ ---> 2e83bb8a3c9a
+ ---> Removed intermediate container 23279b6ab0ac
+ ---> cadf293b1629
+Step 13/15 : HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --start-interval=2s --retries=3     CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ['PORT'], timeout=2)"]
+Successfully built 2e83bb8a3c9a
+Successfully tagged tatkal/inventory-service:1.0
+ Image tatkal/inventory-service:1.0 Built 
+ Image tatkal/inventory-service:1.0 Built 
+Successfully tagged tatkal/notification-service:1.0
+ Image tatkal/notification-service:1.0 Built 
+ Image tatkal/notification-service:1.0 Built 
+ ---> Running in 9e5ee8fd4d09
+ ---> Removed intermediate container 9e5ee8fd4d09
+ ---> a0706489a751
+Step 14/15 : CMD ["python", "-m", "app"]
+ ---> Running in 3c5502aec406
+ ---> Removed intermediate container 3c5502aec406
+ ---> 97557370bb17
+Step 15/15 : LABEL com.docker.compose.image.builder=classic
+ ---> Running in 3b79fd3d9165
+ ---> Removed intermediate container 3b79fd3d9165
+ ---> 7fcfbe5608a2
+Successfully built 7fcfbe5608a2
+Successfully tagged tatkal/payment-service:1.0
+ Image tatkal/payment-service:1.0 Built 
+ Image tatkal/payment-service:1.0 Built 
+ Image tatkal/booking-service:1.0 Building 
+ Image tatkal/booking-service:1.0 Building 
+Sending build context to Docker daemon  26.72kB
+Step 1/15 : FROM python:3.12-slim
+ ---> 78387bc3881b
+Step 2/15 : ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PIP_NO_CACHE_DIR=1     PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Using cache
+ ---> 98c08d466f61
+Step 3/15 : WORKDIR /app
+ ---> Using cache
+ ---> 08d28aecc20a
+Step 4/15 : RUN useradd --system --uid 10001 --no-create-home tatkal
+ ---> Using cache
+ ---> 4d0e34acf9f4
+Step 5/15 : COPY requirements.txt .
+ ---> Using cache
+ ---> 44b8c1c9e689
+Step 6/15 : RUN pip install -r requirements.txt
+ ---> Using cache
+ ---> 142abc1614b0
+Step 7/15 : COPY app ./app
+ ---> 330310522fa6
+Step 8/15 : USER tatkal
+ ---> Running in 89921d23cdab
+ ---> Removed intermediate container 89921d23cdab
+ ---> 6f51f12e6090
+Step 9/15 : ARG APP_VERSION=1.0.0
+ ---> Running in 860d39a78115
+ ---> Removed intermediate container 860d39a78115
+ ---> 6d540ec5406a
+Step 10/15 : ENV APP_VERSION=${APP_VERSION}     HOST=0.0.0.0     PORT=8001
+ ---> Running in 05f91f247439
+ ---> Removed intermediate container 05f91f247439
+ ---> c0a832a994c7
+Step 11/15 : EXPOSE 8001
+ ---> Running in d29fce487919
+ ---> Removed intermediate container d29fce487919
+ ---> 9aa2d62dff5f
+Step 12/15 : LABEL org.opencontainers.image.title="booking-service"       org.opencontainers.image.version="${APP_VERSION}"       org.opencontainers.image.source="https://github.com/spaceman-dev/tatkal-booking-microservices"
+ ---> Running in ea4a8c774a77
+ ---> Removed intermediate container ea4a8c774a77
+ ---> 1b63e686eee1
+Step 13/15 : HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --start-interval=2s --retries=3     CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ['PORT'], timeout=2)"]
+ ---> Running in 320d3a71d26d
+ ---> Removed intermediate container 320d3a71d26d
+ ---> a2363caf2ff3
+Step 14/15 : CMD ["python", "-m", "app"]
+ ---> Running in b08f295204ab
+ ---> Removed intermediate container b08f295204ab
+ ---> d5f4aeb8aa48
+Step 15/15 : LABEL com.docker.compose.image.builder=classic
+ ---> Running in 56e5fec66193
+ ---> Removed intermediate container 56e5fec66193
+ ---> 0b119440020a
+Successfully built 0b119440020a
+Successfully tagged tatkal/booking-service:1.0
+ Image tatkal/booking-service:1.0 Built 
+ Image tatkal/booking-service:1.0 Built 
+ Network tatkal_services Creating 
+ Network tatkal_services Created 
+ Network tatkal_booking-data Creating 
+ Network tatkal_booking-data Created 
+ Network tatkal_notification-data Creating 
+ Network tatkal_notification-data Created 
+ Network tatkal_payment-data Creating 
+ Network tatkal_payment-data Created 
+ Network tatkal_inventory-data Creating 
+ Network tatkal_inventory-data Created 
+ Network tatkal_bank Creating 
+ Network tatkal_bank Created 
+ Volume tatkal_notification-db-data Creating 
+ Volume tatkal_notification-db-data Created 
+ Volume tatkal_payment-db-data Creating 
+ Volume tatkal_payment-db-data Created 
+ Volume tatkal_inventory-db-data Creating 
+ Volume tatkal_inventory-db-data Created 
+ Volume tatkal_booking-db-data Creating 
+ Volume tatkal_booking-db-data Created 
+ Container tatkal-booking-db-1 Creating 
+ Container tatkal-mock-bank-gateway-1 Creating 
+ Container tatkal-notification-db-1 Creating 
+ Container tatkal-inventory-db-1 Creating 
+ Container tatkal-payment-db-1 Creating 
+ Container tatkal-mock-bank-gateway-1 Created 
+ Container tatkal-notification-db-1 Created 
+ Container tatkal-inventory-db-1 Created 
+ Container tatkal-payment-db-1 Created 
+ Container tatkal-notification-service-1 Creating 
+ Container tatkal-payment-service-1 Creating 
+ Container tatkal-inventory-service-1 Creating 
+ Container tatkal-booking-db-1 Created 
+ Container tatkal-payment-service-1 Created 
+ Container tatkal-inventory-service-1 Created 
+ Container tatkal-notification-service-1 Created 
+ Container tatkal-booking-service-1 Creating 
+ Container tatkal-booking-service-1 Created 
+ Container tatkal-notification-db-1 Starting 
+ Container tatkal-payment-db-1 Starting 
+ Container tatkal-mock-bank-gateway-1 Starting 
+ Container tatkal-booking-db-1 Starting 
+ Container tatkal-inventory-db-1 Starting 
+ Container tatkal-booking-db-1 Started 
+ Container tatkal-inventory-db-1 Started 
+ Container tatkal-inventory-db-1 Waiting 
+ Container tatkal-payment-db-1 Started 
+ Container tatkal-notification-db-1 Started 
+ Container tatkal-notification-db-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Started 
+ Container tatkal-mock-bank-gateway-1 Waiting 
+ Container tatkal-payment-db-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Healthy 
+ Container tatkal-inventory-db-1 Healthy 
+ Container tatkal-inventory-service-1 Starting 
+ Container tatkal-notification-db-1 Healthy 
+ Container tatkal-notification-service-1 Starting 
+ Container tatkal-payment-db-1 Healthy 
+ Container tatkal-payment-service-1 Starting 
+ Container tatkal-notification-service-1 Started 
+ Container tatkal-inventory-service-1 Started 
+ Container tatkal-payment-service-1 Started 
+ Container tatkal-notification-service-1 Waiting 
+ Container tatkal-booking-db-1 Waiting 
+ Container tatkal-inventory-service-1 Waiting 
+ Container tatkal-payment-service-1 Waiting 
+ Container tatkal-booking-db-1 Healthy 
+ Container tatkal-notification-service-1 Healthy 
+ Container tatkal-payment-service-1 Healthy 
+ Container tatkal-inventory-service-1 Healthy 
+ Container tatkal-booking-service-1 Starting 
+ Container tatkal-booking-service-1 Started 
+ Container tatkal-payment-service-1 Waiting 
+ Container tatkal-mock-bank-gateway-1 Waiting 
+ Container tatkal-booking-service-1 Waiting 
+ Container tatkal-notification-service-1 Waiting 
+ Container tatkal-inventory-db-1 Waiting 
+ Container tatkal-inventory-service-1 Waiting 
+ Container tatkal-payment-db-1 Waiting 
+ Container tatkal-booking-db-1 Waiting 
+ Container tatkal-notification-db-1 Waiting 
+ Container tatkal-booking-db-1 Healthy 
+ Container tatkal-payment-db-1 Healthy 
+ Container tatkal-notification-db-1 Healthy 
+ Container tatkal-mock-bank-gateway-1 Healthy 
+ Container tatkal-inventory-service-1 Healthy 
+ Container tatkal-payment-service-1 Healthy 
+ Container tatkal-notification-service-1 Healthy 
+ Container tatkal-inventory-db-1 Healthy 
+ Container tatkal-booking-service-1 Healthy 
+
+real	0m19.306s
+user	0m0.112s
+sys	0m0.100s
+exit=0
+$ docker compose ps
+SERVICE                STATUS                    PORTS
+booking-db             Up 11 seconds (healthy)   5432/tcp
+booking-service        Up 2 seconds (healthy)    0.0.0.0:8001->8001/tcp, [::]:8001->8001/tcp
+inventory-db           Up 11 seconds (healthy)   5432/tcp
+inventory-service      Up 5 seconds (healthy)    0.0.0.0:8002->8002/tcp, [::]:8002->8002/tcp
+mock-bank-gateway      Up 11 seconds (healthy)   0.0.0.0:8099->8099/tcp, [::]:8099->8099/tcp
+notification-db        Up 11 seconds (healthy)   5432/tcp
+notification-service   Up 5 seconds (healthy)    0.0.0.0:8004->8004/tcp, [::]:8004->8004/tcp
+payment-db             Up 11 seconds (healthy)   5432/tcp
+payment-service        Up 5 seconds (healthy)    0.0.0.0:8003->8003/tcp, [::]:8003->8003/tcp

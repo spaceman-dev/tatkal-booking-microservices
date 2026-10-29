@@ -1,0 +1,31 @@
+$ docker compose ps --format "table {{.Service}}\t{{.Status}}\t{{.Ports}}"; echo; for p in 8001 8002 8003 8004 8099; do curl -s localhost:$p/health; echo; done; echo; docker inspect --format "{{.Name}}  health={{.State.Health.Status}}  restarts={{.RestartCount}}" $(docker compose ps -q)
+# 2026-10-29 09:53:43 IST (UTC 04:23:43), git d5275cd
+
+SERVICE                STATUS                    PORTS
+booking-db             Up 33 seconds (healthy)   5432/tcp
+booking-service        Up 25 seconds (healthy)   0.0.0.0:8001->8001/tcp, [::]:8001->8001/tcp
+inventory-db           Up 33 seconds (healthy)   5432/tcp
+inventory-service      Up 28 seconds (healthy)   0.0.0.0:8002->8002/tcp, [::]:8002->8002/tcp
+mock-bank-gateway      Up 33 seconds (healthy)   0.0.0.0:8099->8099/tcp, [::]:8099->8099/tcp
+notification-db        Up 33 seconds (healthy)   5432/tcp
+notification-service   Up 28 seconds (healthy)   0.0.0.0:8004->8004/tcp, [::]:8004->8004/tcp
+payment-db             Up 33 seconds (healthy)   5432/tcp
+payment-service        Up 28 seconds (healthy)   0.0.0.0:8003->8003/tcp, [::]:8003->8003/tcp
+
+{"status":"UP","service":"booking-service","version":"1.0.0","instance":"06a39a447295","checks":{"database":"UP"}}
+{"status":"UP","service":"inventory-service","version":"1.0.0","instance":"0a7e1e4be8dd","checks":{"database":"UP"}}
+{"status":"UP","service":"payment-service","version":"1.0.0","instance":"16ad5d3a9ea2","checks":{"database":"UP"}}
+{"status":"UP","service":"notification-service","version":"1.0.0","instance":"9f25a5085694","checks":{"database":"UP"}}
+{"status":"UP","service":"mock-bank-gateway","version":"1.0.0","mode":"normal"}
+
+/tatkal-booking-db-1  health=healthy  restarts=0
+/tatkal-booking-service-1  health=healthy  restarts=0
+/tatkal-inventory-db-1  health=healthy  restarts=0
+/tatkal-inventory-service-1  health=healthy  restarts=0
+/tatkal-mock-bank-gateway-1  health=healthy  restarts=0
+/tatkal-notification-db-1  health=healthy  restarts=0
+/tatkal-notification-service-1  health=healthy  restarts=0
+/tatkal-payment-db-1  health=healthy  restarts=0
+/tatkal-payment-service-1  health=healthy  restarts=0
+
+# exit status 0

@@ -1,0 +1,20 @@
+$ for h in booking-db inventory-service payment-service notification-service inventory-db payment-db notification-db mock-bank-gateway; do printf "%-22s " $h; docker compose exec booking-service getent hosts $h || echo "-- not resolvable from booking-service"; done; echo; for n in services bank booking-data inventory-data payment-data notification-data; do docker network inspect tatkal_$n --format "{{.Name}} internal={{.Internal}}: {{range .Containers}}{{.Name}} {{end}}"; done
+# 2026-10-29 09:55:05 IST (UTC 04:25:05), git d5275cd
+
+booking-db             172.23.0.2      booking-db
+inventory-service      172.21.0.4      inventory-service
+payment-service        172.21.0.2      payment-service
+notification-service   172.21.0.3      notification-service
+inventory-db           -- not resolvable from booking-service
+payment-db             -- not resolvable from booking-service
+notification-db        -- not resolvable from booking-service
+mock-bank-gateway      -- not resolvable from booking-service
+
+tatkal_services internal=false: tatkal-booking-service-1 tatkal-inventory-service-1 tatkal-payment-service-1 tatkal-notification-service-1 
+tatkal_bank internal=false: tatkal-payment-service-1 tatkal-mock-bank-gateway-1 
+tatkal_booking-data internal=true: tatkal-booking-service-1 tatkal-booking-db-1 
+tatkal_inventory-data internal=true: tatkal-inventory-service-1 tatkal-inventory-db-1 
+tatkal_payment-data internal=true: tatkal-payment-service-1 tatkal-payment-db-1 
+tatkal_notification-data internal=true: tatkal-notification-db-1 tatkal-notification-service-1 
+
+# exit status 0

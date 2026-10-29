@@ -1,0 +1,387 @@
+$ docker compose build --no-cache
+# 2026-10-29 09:51:28 IST (UTC 04:21:28), git d5275cd
+
+ Image tatkal/inventory-service:1.0 Building 
+ Image tatkal/mock-bank-gateway:1.0 Building 
+ Image tatkal/notification-service:1.0 Building 
+ Image tatkal/booking-service:1.0 Building 
+ Image tatkal/payment-service:1.0 Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 3.22kB done
+#1 DONE 0.0s
+
+#2 [booking-service internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.45kB done
+#2 DONE 0.0s
+
+#3 [inventory-service internal] load build definition from Dockerfile
+#3 transferring dockerfile: 1.46kB done
+#3 DONE 0.0s
+
+#4 [notification-service internal] load build definition from Dockerfile
+#4 transferring dockerfile: 1.47kB done
+#4 DONE 0.0s
+
+#5 [payment-service internal] load build definition from Dockerfile
+#5 transferring dockerfile: 1.45kB done
+#5 DONE 0.0s
+
+#6 [mock-bank-gateway internal] load build definition from Dockerfile
+#6 transferring dockerfile: 1.37kB done
+#6 DONE 0.0s
+
+#7 [mock-bank-gateway internal] load metadata for docker.io/library/python:3.12-slim
+#7 DONE 0.0s
+
+#8 [booking-service internal] load .dockerignore
+#8 transferring context: 213B done
+#8 DONE 0.0s
+
+#9 [payment-service internal] load .dockerignore
+#9 transferring context: 213B done
+#9 DONE 0.0s
+
+#10 [notification-service internal] load .dockerignore
+#10 transferring context: 213B done
+#10 DONE 0.0s
+
+#11 [inventory-service internal] load .dockerignore
+#11 transferring context: 213B done
+#11 DONE 0.0s
+
+#12 [mock-bank-gateway internal] load .dockerignore
+#12 transferring context: 213B done
+#12 DONE 0.0s
+
+#13 [booking-service internal] load build context
+#13 transferring context: 92.43kB done
+#13 DONE 0.0s
+
+#14 [inventory-service 1/6] FROM docker.io/library/python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+#14 resolve docker.io/library/python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea 0.0s done
+#14 CACHED
+
+#15 [payment-service internal] load build context
+#15 transferring context: 68.19kB done
+#15 DONE 0.0s
+
+#16 [notification-service internal] load build context
+#16 transferring context: 38.22kB done
+#16 DONE 0.0s
+
+#17 [inventory-service internal] load build context
+#17 transferring context: 61.23kB done
+#17 DONE 0.0s
+
+#18 [mock-bank-gateway internal] load build context
+#18 transferring context: 30.34kB done
+#18 DONE 0.0s
+
+#19 [payment-service 2/6] WORKDIR /app
+#19 DONE 0.0s
+
+#20 [payment-service 3/6] RUN useradd --system --uid 10001 --no-create-home tatkal
+#20 0.104 useradd warning: tatkal's uid 10001 is greater than SYS_UID_MAX 999
+#20 DONE 0.1s
+
+#21 [booking-service 4/6] COPY requirements.txt .
+#21 DONE 0.0s
+
+#22 [mock-bank-gateway 4/6] COPY requirements.txt .
+#22 DONE 0.0s
+
+#23 [payment-service 5/6] RUN pip install -r requirements.txt
+#23 1.094 Collecting fastapi==0.156.4 (from -r requirements.txt (line 1))
+#23 1.257   Downloading fastapi-0.156.4-py3-none-any.whl.metadata (26 kB)
+#23 1.403 Collecting uvicorn==0.54.0 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#23 1.446   Downloading uvicorn-0.54.0-py3-none-any.whl.metadata (6.6 kB)
+#23 2.785 Collecting SQLAlchemy==2.1.5 (from -r requirements.txt (line 3))
+#23 2.828   Downloading sqlalchemy-2.1.5-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (9.7 kB)
+#23 2.912 Collecting psycopg==3.3.6 (from psycopg[binary]==3.3.6->-r requirements.txt (line 4))
+#23 2.955   Downloading psycopg-3.3.6-py3-none-any.whl.metadata (4.4 kB)
+#23 3.428 Collecting pydantic==2.14.1 (from -r requirements.txt (line 5))
+#23 3.472   Downloading pydantic-2.14.1-py3-none-any.whl.metadata (133 kB)
+#23 3.608 Collecting pydantic-settings==2.16.1 (from -r requirements.txt (line 6))
+#23 3.655   Downloading pydantic_settings-2.16.1-py3-none-any.whl.metadata (4.0 kB)
+#23 3.778 Collecting httpx==0.28.1 (from -r requirements.txt (line 7))
+#23 3.822   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+#23 3.997 Collecting starlette>=0.46.0 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#23 4.040   Downloading starlette-1.10.0-py3-none-any.whl.metadata (6.6 kB)
+#23 4.162 Collecting typing-extensions>=4.8.0 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#23 4.206   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+#23 4.265 Collecting typing-inspection>=0.4.2 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#23 4.308   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+#23 4.365 Collecting annotated-doc>=0.0.2 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#23 4.406   Downloading annotated_doc-0.0.5-py3-none-any.whl.metadata (6.5 kB)
+#23 4.705 Collecting opentelemetry-api>=1.44.0 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#23 4.751   Downloading opentelemetry_api-1.45.1-py3-none-any.whl.metadata (1.4 kB)
+#23 4.834 Collecting click>=7.0 (from uvicorn==0.54.0->uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#23 4.877   Downloading click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+#23 4.938 Collecting h11>=0.8 (from uvicorn==0.54.0->uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#23 4.982   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+#23 5.048 Collecting annotated-types>=0.6.0 (from pydantic==2.14.1->-r requirements.txt (line 5))
+#23 5.092   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+#23 7.342 Collecting pydantic-core==2.50.1 (from pydantic==2.14.1->-r requirements.txt (line 5))
+#23 7.384   Downloading pydantic_core-2.50.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (6.5 kB)
+#23 7.468 Collecting python-dotenv>=1.2.2 (from pydantic-settings==2.16.1->-r requirements.txt (line 6))
+#23 7.511   Downloading python_dotenv-1.2.4-py3-none-any.whl.metadata (29 kB)
+#23 7.666 Collecting anyio (from httpx==0.28.1->-r requirements.txt (line 7))
+#23 7.709   Downloading anyio-4.15.1-py3-none-any.whl.metadata (4.7 kB)
+#23 7.825 Collecting certifi (from httpx==0.28.1->-r requirements.txt (line 7))
+#23 7.870   Downloading certifi-2026.10.23-py3-none-any.whl.metadata (2.5 kB)
+#23 7.970 Collecting httpcore==1.* (from httpx==0.28.1->-r requirements.txt (line 7))
+#23 8.014   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+#23 8.119 Collecting idna (from httpx==0.28.1->-r requirements.txt (line 7))
+#23 8.162   Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+#23 8.776 Collecting psycopg-binary==3.3.6 (from psycopg[binary]==3.3.6->-r requirements.txt (line 4))
+#23 8.820   Downloading psycopg_binary-3.3.6-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+#23 8.960 Collecting httptools>=0.8.0 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#23 9.003   Downloading httptools-0.9.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (3.5 kB)
+#23 9.191 Collecting pyyaml>=5.1 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#23 9.234   Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+#23 9.421 Collecting uvloop>=0.15.1 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#23 9.464   Downloading uvloop-0.23.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (5.1 kB)
+#23 9.708 Collecting watchfiles>=0.20 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#23 9.751   Downloading watchfiles-1.3.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.9 kB)
+#23 ...
+
+#24 [mock-bank-gateway 5/6] RUN pip install -r requirements.txt
+#24 1.000 Collecting fastapi==0.156.4 (from -r requirements.txt (line 1))
+#24 1.187   Downloading fastapi-0.156.4-py3-none-any.whl.metadata (26 kB)
+#24 1.336 Collecting uvicorn==0.54.0 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#24 1.378   Downloading uvicorn-0.54.0-py3-none-any.whl.metadata (6.6 kB)
+#24 1.804 Collecting pydantic==2.14.1 (from -r requirements.txt (line 3))
+#24 1.846   Downloading pydantic-2.14.1-py3-none-any.whl.metadata (133 kB)
+#24 1.980 Collecting pydantic-settings==2.16.1 (from -r requirements.txt (line 4))
+#24 2.026   Downloading pydantic_settings-2.16.1-py3-none-any.whl.metadata (4.0 kB)
+#24 2.117 Collecting httpx==0.28.1 (from -r requirements.txt (line 5))
+#24 2.159   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+#24 2.233 Collecting starlette>=0.46.0 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#24 2.276   Downloading starlette-1.10.0-py3-none-any.whl.metadata (6.6 kB)
+#24 2.369 Collecting typing-extensions>=4.8.0 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#24 2.412   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+#24 2.456 Collecting typing-inspection>=0.4.2 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#24 2.499   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+#24 2.542 Collecting annotated-doc>=0.0.2 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#24 2.585   Downloading annotated_doc-0.0.5-py3-none-any.whl.metadata (6.5 kB)
+#24 2.657 Collecting opentelemetry-api>=1.44.0 (from fastapi==0.156.4->-r requirements.txt (line 1))
+#24 2.700   Downloading opentelemetry_api-1.45.1-py3-none-any.whl.metadata (1.4 kB)
+#24 2.766 Collecting click>=7.0 (from uvicorn==0.54.0->uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#24 2.809   Downloading click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+#24 2.853 Collecting h11>=0.8 (from uvicorn==0.54.0->uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#24 2.895   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+#24 2.944 Collecting annotated-types>=0.6.0 (from pydantic==2.14.1->-r requirements.txt (line 3))
+#24 2.988   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+#24 5.906 Collecting pydantic-core==2.50.1 (from pydantic==2.14.1->-r requirements.txt (line 3))
+#24 5.952   Downloading pydantic_core-2.50.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (6.5 kB)
+#24 6.019 Collecting python-dotenv>=1.2.2 (from pydantic-settings==2.16.1->-r requirements.txt (line 4))
+#24 6.063   Downloading python_dotenv-1.2.4-py3-none-any.whl.metadata (29 kB)
+#24 6.136 Collecting anyio (from httpx==0.28.1->-r requirements.txt (line 5))
+#24 6.180   Downloading anyio-4.15.1-py3-none-any.whl.metadata (4.7 kB)
+#24 6.285 Collecting certifi (from httpx==0.28.1->-r requirements.txt (line 5))
+#24 6.329   Downloading certifi-2026.10.23-py3-none-any.whl.metadata (2.5 kB)
+#24 6.375 Collecting httpcore==1.* (from httpx==0.28.1->-r requirements.txt (line 5))
+#24 6.418   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+#24 6.532 Collecting idna (from httpx==0.28.1->-r requirements.txt (line 5))
+#24 6.575   Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+#24 6.685 Collecting httptools>=0.8.0 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#24 6.732   Downloading httptools-0.9.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (3.5 kB)
+#24 6.888 Collecting pyyaml>=5.1 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#24 6.931   Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+#24 7.115 Collecting uvloop>=0.15.1 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#24 7.159   Downloading uvloop-0.23.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (5.1 kB)
+#24 7.441 Collecting watchfiles>=0.20 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#24 7.485   Downloading watchfiles-1.3.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.9 kB)
+#24 8.042 Collecting websockets>=13.0 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#24 8.097   Downloading websockets-17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.3 kB)
+#24 8.167 Downloading fastapi-0.156.4-py3-none-any.whl (147 kB)
+#24 8.432 Downloading uvicorn-0.54.0-py3-none-any.whl (87 kB)
+#24 8.572 Downloading pydantic-2.14.1-py3-none-any.whl (488 kB)
+#24 9.226 Downloading pydantic_settings-2.16.1-py3-none-any.whl (80 kB)
+#24 9.381 Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+#24 9.470 Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+#24 9.794 Downloading pydantic_core-2.50.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (2.0 MB)
+#24 ...
+
+#23 [payment-service 5/6] RUN pip install -r requirements.txt
+#23 10.30 Collecting websockets>=13.0 (from uvicorn[standard]==0.54.0->-r requirements.txt (line 2))
+#23 10.34   Downloading websockets-17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.3 kB)
+#23 10.41 Downloading fastapi-0.156.4-py3-none-any.whl (147 kB)
+#23 10.57 Downloading uvicorn-0.54.0-py3-none-any.whl (87 kB)
+#23 10.68 Downloading sqlalchemy-2.1.5-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (4.7 MB)
+#23 15.42    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.7/4.7 MB 965.6 kB/s eta 0:00:00
+#23 15.47 Downloading psycopg-3.3.6-py3-none-any.whl (215 kB)
+#23 15.67 Downloading pydantic-2.14.1-py3-none-any.whl (488 kB)
+#23 16.47 Downloading pydantic_settings-2.16.1-py3-none-any.whl (80 kB)
+#23 16.56 Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+#23 16.68 Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+#23 16.84 Downloading psycopg_binary-3.3.6-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (6.8 MB)
+#23 ...
+
+#24 [mock-bank-gateway 5/6] RUN pip install -r requirements.txt
+#24 12.84    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.0/2.0 MB 732.4 kB/s eta 0:00:00
+#24 12.89 Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+#24 12.93 Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+#24 12.99 Downloading click-8.5.0-py3-none-any.whl (125 kB)
+#24 13.10 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+#24 13.16 Downloading httptools-0.9.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (549 kB)
+#24 13.44    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 549.2/549.2 kB 2.1 MB/s eta 0:00:00
+#24 13.48 Downloading opentelemetry_api-1.45.1-py3-none-any.whl (60 kB)
+#24 13.55 Downloading python_dotenv-1.2.4-py3-none-any.whl (23 kB)
+#24 13.60 Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (775 kB)
+#24 13.92    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 775.1/775.1 kB 2.6 MB/s eta 0:00:00
+#24 13.97 Downloading starlette-1.10.0-py3-none-any.whl (80 kB)
+#24 14.04 Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+#24 14.13 Downloading idna-3.20-py3-none-any.whl (69 kB)
+#24 14.27 Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+#24 14.39 Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+#24 14.50 Downloading uvloop-0.23.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (4.4 MB)
+#24 20.99    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 697.8 kB/s eta 0:00:00
+#24 21.03 Downloading watchfiles-1.3.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (454 kB)
+#24 21.71 Downloading websockets-17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (227 kB)
+#24 22.17 Downloading certifi-2026.10.23-py3-none-any.whl (135 kB)
+#24 22.37 Installing collected packages: websockets, uvloop, typing-extensions, pyyaml, python-dotenv, idna, httptools, h11, click, certifi, annotated-types, annotated-doc, uvicorn, typing-inspection, pydantic-core, opentelemetry-api, httpcore, anyio, watchfiles, starlette, pydantic, httpx, pydantic-settings, fastapi
+#24 23.18 Successfully installed annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 certifi-2026.10.23 click-8.5.0 fastapi-0.156.4 h11-0.16.0 httpcore-1.0.9 httptools-0.9.0 httpx-0.28.1 idna-3.20 opentelemetry-api-1.45.1 pydantic-2.14.1 pydantic-core-2.50.1 pydantic-settings-2.16.1 python-dotenv-1.2.4 pyyaml-6.0.3 starlette-1.10.0 typing-extensions-4.16.0 typing-inspection-0.4.4 uvicorn-0.54.0 uvloop-0.23.0 watchfiles-1.3.0 websockets-17.3
+#24 23.18 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#24 DONE 23.3s
+
+#23 [payment-service 5/6] RUN pip install -r requirements.txt
+#23 ...
+
+#25 [mock-bank-gateway 6/6] COPY app ./app
+#25 DONE 0.0s
+
+#26 [mock-bank-gateway] exporting to image
+#26 exporting layers
+#26 exporting layers 1.5s done
+#26 exporting manifest sha256:b9c19bfb88cacc6b64e17dbd8502f1cf1fb636762544c8d5eecd14028a58ef6c done
+#26 exporting config sha256:e9f84885ce1297e73f7916ad0067a21b6209869443add1de45872cb9ab380608 done
+#26 exporting attestation manifest sha256:8a56fa02f9ba9b9c8793d2647fd1b055c7ea8c420a3745da90dc8e0982388ede done
+#26 exporting manifest list sha256:c3ea764011508c95a5f76650e34a9566c297e5bc0230f68d56562017cad0cc79 done
+#26 naming to docker.io/tatkal/mock-bank-gateway:1.0 done
+#26 unpacking to docker.io/tatkal/mock-bank-gateway:1.0
+#26 unpacking to docker.io/tatkal/mock-bank-gateway:1.0 0.2s done
+#26 DONE 1.8s
+
+#27 [mock-bank-gateway] resolving provenance for metadata file
+#27 DONE 0.0s
+
+#23 [payment-service 5/6] RUN pip install -r requirements.txt
+#23 26.08    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.8/6.8 MB 738.3 kB/s eta 0:00:00
+#23 26.13 Downloading pydantic_core-2.50.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (2.0 MB)
+#23 29.03    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.0/2.0 MB 694.5 kB/s eta 0:00:00
+#23 29.08 Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+#23 29.13 Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+#23 29.19 Downloading click-8.5.0-py3-none-any.whl (125 kB)
+#23 29.42 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+#23 29.51 Downloading httptools-0.9.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (549 kB)
+#23 30.26    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 549.2/549.2 kB 696.8 kB/s eta 0:00:00
+#23 30.30 Downloading opentelemetry_api-1.45.1-py3-none-any.whl (60 kB)
+#23 30.42 Downloading python_dotenv-1.2.4-py3-none-any.whl (23 kB)
+#23 30.48 Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (775 kB)
+#23 31.18    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 775.1/775.1 kB 886.7 kB/s eta 0:00:00
+#23 31.23 Downloading starlette-1.10.0-py3-none-any.whl (80 kB)
+#23 31.35 Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+#23 31.70 Downloading idna-3.20-py3-none-any.whl (69 kB)
+#23 31.78 Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+#23 31.88 Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+#23 31.97 Downloading uvloop-0.23.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (4.4 MB)
+#23 38.31    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 704.8 kB/s eta 0:00:00
+#23 38.35 Downloading watchfiles-1.3.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (454 kB)
+#23 39.05 Downloading websockets-17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (227 kB)
+#23 39.52 Downloading certifi-2026.10.23-py3-none-any.whl (135 kB)
+#23 39.67 Installing collected packages: websockets, uvloop, typing-extensions, pyyaml, python-dotenv, psycopg-binary, idna, httptools, h11, click, certifi, annotated-types, annotated-doc, uvicorn, typing-inspection, SQLAlchemy, pydantic-core, psycopg, opentelemetry-api, httpcore, anyio, watchfiles, starlette, pydantic, httpx, pydantic-settings, fastapi
+#23 41.34 Successfully installed SQLAlchemy-2.1.5 annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 certifi-2026.10.23 click-8.5.0 fastapi-0.156.4 h11-0.16.0 httpcore-1.0.9 httptools-0.9.0 httpx-0.28.1 idna-3.20 opentelemetry-api-1.45.1 psycopg-3.3.6 psycopg-binary-3.3.6 pydantic-2.14.1 pydantic-core-2.50.1 pydantic-settings-2.16.1 python-dotenv-1.2.4 pyyaml-6.0.3 starlette-1.10.0 typing-extensions-4.16.0 typing-inspection-0.4.4 uvicorn-0.54.0 uvloop-0.23.0 watchfiles-1.3.0 websockets-17.3
+#23 41.34 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#23 DONE 41.5s
+
+#28 [notification-service 4/6] COPY requirements.txt .
+#28 CACHED
+
+#29 [notification-service 5/6] RUN pip install -r requirements.txt
+#29 CACHED
+
+#30 [payment-service 5/6] RUN pip install -r requirements.txt
+#30 CACHED
+
+#31 [payment-service 4/6] COPY requirements.txt .
+#31 CACHED
+
+#32 [inventory-service 4/6] COPY requirements.txt .
+#32 CACHED
+
+#33 [inventory-service 5/6] RUN pip install -r requirements.txt
+#33 CACHED
+
+#34 [booking-service 6/6] COPY app ./app
+#34 DONE 0.0s
+
+#35 [notification-service 6/6] COPY app ./app
+#35 DONE 0.0s
+
+#36 [payment-service 6/6] COPY app ./app
+#36 DONE 0.0s
+
+#37 [inventory-service 6/6] COPY app ./app
+#37 DONE 0.0s
+
+#38 [inventory-service] exporting to image
+#38 exporting layers
+#38 exporting layers 2.1s done
+#38 exporting manifest sha256:3820b58072db1a5f87a40c4759c18d97a0992e36be2a39516aea004e66ed9f93 done
+#38 exporting config sha256:cb7d762b53039ad77c4791edbf0e1df5b354befd110635e45e9f76bbe3054c39 0.0s done
+#38 exporting attestation manifest sha256:1cd90d97fe68fbd03c5b4110806ac698e13439e53e4d81a5a4f115cf346acb4c 0.0s done
+#38 exporting manifest list sha256:f7ef1fa8d8958823b6afc83d77a172d10236da34beda5c5aa61b407c83392085 0.0s done
+#38 naming to docker.io/tatkal/inventory-service:1.0 done
+#38 unpacking to docker.io/tatkal/inventory-service:1.0
+#38 unpacking to docker.io/tatkal/inventory-service:1.0 0.7s done
+#38 DONE 2.9s
+
+#39 [payment-service] exporting to image
+#39 exporting layers 2.1s done
+#39 exporting manifest sha256:4c44bdd80c45ef9485f7f905676a3bf36c3085825e90b5f460aeaef3d8e1da12 done
+#39 exporting config sha256:d749420de9298d89d997c01674ac4d927e2f43cd8ba03dbf1c98506cf7df3778 0.0s done
+#39 exporting attestation manifest sha256:a610413f947993d2f8b7609f624a360d5db99e1ed0cfd574b25f6f39f4464372 0.0s done
+#39 exporting manifest list sha256:492911e535dd86db0fb0252b6ada502a568a060cf2e3622acfcba0769d140e36 0.0s done
+#39 naming to docker.io/tatkal/payment-service:1.0 done
+#39 unpacking to docker.io/tatkal/payment-service:1.0 0.7s done
+#39 DONE 2.9s
+
+#40 [notification-service] exporting to image
+#40 exporting layers 2.1s done
+#40 exporting manifest sha256:763ede601665fb1842474258a2b514a286068b59cf41a969f7d302b63bc13de8 done
+#40 exporting config sha256:96503c72f98d8d214ef512dec9ea790a93007474855564d58beeb2155d720bb2 0.0s done
+#40 exporting attestation manifest sha256:c162157fae7810ee4e7e77ce2ebb9dca4f2eae4d5004c7f3481d2036de1f3906 0.0s done
+#40 exporting manifest list sha256:3a667e0590581ecf0c22ac4429e83dc441e0a405ddfa4b72bf977226bc3babb9 0.0s done
+#40 naming to docker.io/tatkal/notification-service:1.0 done
+#40 unpacking to docker.io/tatkal/notification-service:1.0 0.8s done
+#40 DONE 3.0s
+
+#41 [booking-service] exporting to image
+#41 exporting layers 2.1s done
+#41 exporting manifest sha256:87b307a491d6970f7057a6387627297047cbf02a76193bb182d67b942b07eefc done
+#41 exporting config sha256:b7de1be6ae4e943953e4e7293ddbbb24987646ad1515e1ca1a4c81a73f9d1310 0.0s done
+#41 exporting attestation manifest sha256:871bcf7457e6f6a5bdf9a6c437e7bdec4285e43fbd7cdc35d789037457158b2a 0.0s done
+#41 exporting manifest list sha256:9423e85111672e7da799cc73c2a7088dab2090164e9556287f1833d80ab806c3 0.0s done
+#41 naming to docker.io/tatkal/booking-service:1.0 done
+#41 unpacking to docker.io/tatkal/booking-service:1.0 0.8s done
+#41 DONE 3.0s
+
+#42 [inventory-service] resolving provenance for metadata file
+#42 DONE 0.0s
+
+#43 [payment-service] resolving provenance for metadata file
+#43 DONE 0.0s
+
+#44 [notification-service] resolving provenance for metadata file
+#44 DONE 0.0s
+
+#45 [booking-service] resolving provenance for metadata file
+#45 DONE 0.0s
+ Image tatkal/notification-service:1.0 Built 
+ Image tatkal/inventory-service:1.0 Built 
+ Image tatkal/payment-service:1.0 Built 
+ Image tatkal/mock-bank-gateway:1.0 Built 
+ Image tatkal/booking-service:1.0 Built 
+
+# exit status 0

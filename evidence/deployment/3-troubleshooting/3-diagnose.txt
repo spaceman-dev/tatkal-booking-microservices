@@ -1,0 +1,23 @@
+$ echo "== 1. what the app logged on its first try"; docker logs inventory-host-env 2>&1 | grep -m1 "attempt 1/30" | jq -r ".database, .error"; echo "== 2. the env the container was given"; docker inspect -f "{{range .Config.Env}}{{println .}}{{end}}" inventory-host-env | grep -E "^(DATABASE_URL|PORT)=" | sed -E "s#:[^:@]+@#:***@#"; echo "== 3. networks of the container"; docker inspect -f "{{json .NetworkSettings.Networks}}" inventory-host-env | jq -r "keys[]"; echo "== 4. where the database really is"; docker compose -f docker-compose.db.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" inventory-db; docker inspect -f "{{json .NetworkSettings.Networks}}" tatkal-inventory-db | jq -r "to_entries[] | [.key, .value.IPAddress] + .value.DNSNames | @tsv"; echo "== 5. inside the container (started again so exec works)"; docker start inventory-host-env; sleep 2; docker exec inventory-host-env sh -c "grep localhost /etc/hosts; echo own ip: \$(hostname -i)"; docker exec inventory-host-env getent hosts inventory-db; echo "getent inventory-db exit code $?"
+# 2026-10-29 10:01:48 IST (UTC 04:31:48), git b118ea2
+
+== 1. what the app logged on its first try
+postgresql+psycopg://inventory_svc:***@localhost:5442/inventory_db
+connection failed: connection to server at "127.0.0.1", port 5442 failed: Connection refused
+== 2. the env the container was given
+PORT=8002
+DATABASE_URL=postgresql+psycopg://inventory_svc:***@localhost:5442/inventory_db
+== 3. networks of the container
+bridge
+== 4. where the database really is
+NAME                  STATUS                   PORTS
+tatkal-inventory-db   Up 4 minutes (healthy)   0.0.0.0:5442->5432/tcp, [::]:5442->5432/tcp
+tatkal-db_default	172.18.0.2	tatkal-inventory-db	inventory-db	fc7c148b31f8
+== 5. inside the container (started again so exec works)
+inventory-host-env
+127.0.0.1	localhost
+::1	localhost ip6-localhost ip6-loopback
+own ip: 172.17.0.4
+getent inventory-db exit code 2
+
+# exit status 0

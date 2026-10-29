@@ -14,6 +14,8 @@ to SVG (used in the report) and PNG. GitHub renders Mermaid directly if you past
 | `er-booking`, `er-inventory`, `er-payment`, `er-notification` | one ER diagram per service database |
 | `idempotency-flow` | how an Idempotency-Key is claimed, replayed or rejected |
 | `concurrency-race` | why check-then-update oversells and the conditional UPDATE does not |
+| `deployment-compose` | Assignment 2: the containers, networks, volumes and published ports of `docker-compose.yml` |
+| `deployment-k8s` | Assignment 2: the same application on Minikube (Deployments, StatefulSets, Services) |
 
 To regenerate after editing (needs Node.js; uses a local Chrome/Chromium):
 

@@ -1,6 +1,6 @@
 # Tatkal Booking System
 
-Scalable Services (SEZG583), Assignment 1.
+Scalable Services (SEZG583), Assignments 1 and 2.
 
 Team: Dhruv Bhat (2025TM93139), Ratani Snehi Rajesh Darshana (2025TM93530), Atharva Kadam (2025TM93221),
 N Abhishek Reddy (2023MT93400).
@@ -21,32 +21,99 @@ own PostgreSQL database and its own credentials. Services talk to each other onl
 
 | Service | Port | Database | What it does | Owner |
 |---|---|---|---|---|
-| [booking-service](services/booking-service) | 8001 | `booking_db` on :5441 | Owns bookings and runs the booking saga: hold seats, take payment, confirm seats, notify | Dhruv Bhat |
-| [inventory-service](services/inventory-service) | 8002 | `inventory_db` on :5442 | Owns trains, fares and the Tatkal seat quota; the only place seats are held, confirmed or released | Ratani Snehi Rajesh Darshana |
-| [payment-service](services/payment-service) | 8003 | `payment_db` on :5443 | Owns payments and refunds; the only service that talks to the bank | Atharva Kadam |
-| [notification-service](services/notification-service) | 8004 | `notification_db` on :5444 | Sends booking SMS / e-mails and keeps the delivery log | N Abhishek Reddy |
+| [booking-service](services/booking-service) | 8001 | `booking_db` | Owns bookings and runs the booking saga: hold seats, take payment, confirm seats, notify | Dhruv Bhat |
+| [inventory-service](services/inventory-service) | 8002 | `inventory_db` | Owns trains, fares and the Tatkal seat quota; the only place seats are held, confirmed or released | Ratani Snehi Rajesh Darshana |
+| [payment-service](services/payment-service) | 8003 | `payment_db` | Owns payments and refunds; the only service that talks to the bank | Atharva Kadam |
+| [notification-service](services/notification-service) | 8004 | `notification_db` | Sends booking SMS / e-mails and keeps the delivery log | N Abhishek Reddy |
 | [mock-bank-gateway](services/mock-bank-gateway) | 8099 | none (in memory) | Simulated external UPI/card gateway that can be made slow, down or flaky | Atharva Kadam |
 
-The design report (`docs/report/`) explains why the system is split this way, the data model, the APIs
-and the trade-offs. Evidence for the three engineering challenges is in [`evidence/`](evidence).
+- **Assignment 1** (design and the three engineering challenges): report in [`docs/report/`](docs/report),
+  evidence in [`evidence/`](evidence). The version we submitted is tagged
+  [`assignment-1`](https://github.com/spaceman-dev/tatkal-booking-microservices/tree/assignment-1).
+- **Assignment 2** (containers and deployment): sections 1 and 2 below, the deployment report in
+  [`docs/deployment-report/`](docs/deployment-report) and the evidence in
+  [`evidence/deployment/`](evidence/deployment).
 
-## 1. Prerequisites
+## 1. Run everything with Docker Compose
 
-- **Python 3.11 or newer** (we developed on 3.12)
-- **Docker** with Compose (Docker Desktop, Colima, Rancher Desktop...). It is only used for the four
-  PostgreSQL databases. If you already have PostgreSQL 14+ installed, see
-  [Running without Docker](#running-without-docker).
-- Git
-
-Free ports needed: 8001-8004, 8099 and 5441-5444.
-
-## 2. Quick start
+You need Docker with Compose v2 (`docker compose version` should print a version) and free ports 8001-8004
+and 8099. Nothing else: Python, PostgreSQL and the dependencies all come in the images.
 
 ```bash
-git clone <repo-url> tatkal-booking-microservices
+git clone https://github.com/spaceman-dev/tatkal-booking-microservices.git
 cd tatkal-booking-microservices
+cp .env.example .env          # the four database passwords; change them, git ignores .env
+docker compose up --build     # add -d to get the terminal back
+```
 
-# 1. the four databases (one container, user and password per service)
+The first build takes a minute or two. Compose starts the four databases first, then each service once its
+database (and, for booking-service, the services it calls) reports healthy. In another terminal:
+
+```bash
+docker compose ps             # 9 containers, all "Up ... (healthy)"
+curl localhost:8001/health    # {"status":"UP", ... "instance":"<container id>" ...}
+```
+
+Then book a ticket with the curl commands in [section 3](#book-a-ticket), or run the end-to-end tests and the
+step-by-step demo against the containers. They need Python 3.11+ on your machine for the test tooling only:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt
+.venv/bin/python -m pytest tests/e2e -v          # 7 tests: book, pay, confirm, notify and the failure paths
+bash scripts/demo_flow.sh                        # the main flow step by step, Enter between steps
+.venv/bin/python scripts/trace.py <correlation-id>   # one request followed through every container's log
+```
+
+Logs, health and stopping:
+
+```bash
+docker compose logs -f booking-service           # JSON lines, each with a correlation_id
+docker inspect --format '{{json .State.Health}}' tatkal-booking-service-1
+docker compose stop && docker compose start      # pause and resume
+docker compose down                              # remove containers and networks, keep the data
+docker compose up -d                             # back, with the same bookings
+docker compose down -v                           # also delete the four databases
+```
+
+How it is put together:
+
+- **One image per service** (`services/<name>/Dockerfile`): `python:3.12-slim`, dependencies in their own
+  layer, the code owned by root and run by a normal user, a `HEALTHCHECK` on `/health`, `python -m app` as
+  PID 1 so `docker stop` shuts it down cleanly. `.dockerignore` keeps `.env`, `.venv` and the tests out.
+- **No passwords in images or in git.** They are only in `.env`. Compose puts them into each container's
+  environment when it starts it, and builds `DATABASE_URL` from them.
+- **Names, not localhost.** Inside the compose network the services reach each other as
+  `http://inventory-service:8002` and their databases as `booking-db:5432`.
+- **Separate networks.** Each database sits on an internal network shared only with its own service, so
+  booking-service cannot even resolve `inventory-db`. Only payment-service can reach the bank. The
+  databases are not published on the host.
+- **Start order** comes from `depends_on: condition: service_healthy`; the data lives in four named volumes.
+
+## 2. Run it on Kubernetes (Minikube)
+
+```bash
+minikube start --cpus=2 --memory=3500mb
+bash deploy/k8s/deploy.sh            # builds the images, loads them into minikube, applies the manifests
+bash deploy/k8s/port-forward.sh      # in its own terminal: the services on localhost:8001-8004 and 8099
+LOG_SOURCE=k8s .venv/bin/python -m pytest tests/e2e -v
+```
+
+Stop the compose stack first (`docker compose down`), both use the same local ports. Scaling, deleting a
+pod and rolling updates are described in [`deploy/k8s/README.md`](deploy/k8s/README.md).
+
+## 3. Developing without containers (the Assignment 1 setup)
+
+For working on the code it is handier to run the services on the host. You need:
+
+- **Python 3.11 or newer** (we developed on 3.12; on macOS `python3` may still be 3.9, use `python3.12`)
+- **Docker** with Compose, only for the four PostgreSQL databases. If you already have PostgreSQL 14+
+  installed, see [Running without Docker](#running-without-docker).
+- Free ports 8001-8004, 8099 and 5441-5444. Stop the compose stack first if it is running.
+
+```bash
+cp .env.example .env                                  # database passwords, shared with docker compose
+
+# 1. the four databases (one container, user and password per service), on localhost:5441-5444
 docker compose -f docker-compose.db.yml up -d
 
 # 2. one virtualenv per service + a tooling venv for the scripts; creates every .env from .env.example
@@ -91,7 +158,7 @@ Every service has Swagger UI at `/docs` (for example http://localhost:8001/docs)
 Stop everything with `python scripts/stack.py stop` and `docker compose -f docker-compose.db.yml down`
 (add `-v` to delete the data).
 
-## 3. Running one service by hand
+## 4. Running one service by hand
 
 Every service is independently runnable from its own folder with its own dependency file:
 
@@ -107,17 +174,19 @@ python -m app                      # starts on the PORT from .env
 `python -m app` reads `HOST` and `PORT` from the environment. Tables are created on start-up and
 inventory-service also inserts the demo trains.
 
-## 4. Configuration
+## 5. Configuration
 
-All configuration comes from environment variables. Each service reads its `.env` file (created from
-`.env.example`), and real environment variables override it - which is how Assignment 2 (Docker /
-Kubernetes) will configure them. `PORT`, `DATABASE_URL` and the URLs of other services have no defaults,
-so a missing value stops the service at start-up instead of quietly using the wrong thing.
+All configuration comes from environment variables. With Docker they are set in `docker-compose.yml`
+(and the database passwords come from the root `.env`); on Kubernetes they come from a ConfigMap and a
+Secret. On the host each service reads its own `.env` (created from `.env.example`), and real environment
+variables override it. `PORT`, `DATABASE_URL` and the URLs of other services have no defaults, so a missing
+value stops the service at start-up instead of quietly using the wrong thing.
 
 | Variable | Service(s) | Default in .env.example | Meaning |
 |---|---|---|---|
+| `BOOKING_DB_PASSWORD`, `INVENTORY_DB_PASSWORD`, `PAYMENT_DB_PASSWORD`, `NOTIFICATION_DB_PASSWORD` | root `.env` | `change-me-...` | database passwords for docker compose, Kubernetes and `stack.py setup` |
 | `PORT`, `HOST` | all | 8001-8004, 8099 / `0.0.0.0` | where the service listens |
-| `DATABASE_URL` | the four business services | `postgresql+psycopg://<svc>_svc:<svc>_dev_pw@localhost:544x/<svc>_db` | the service's own database |
+| `DATABASE_URL` | the four business services | `postgresql+psycopg://<svc>_svc:<password>@localhost:544x/<svc>_db` (in Docker: `<svc>-db:5432`) | the service's own database |
 | `LOG_LEVEL` | all | `INFO` | JSON logs on stdout |
 | `INVENTORY_SERVICE_URL`, `PAYMENT_SERVICE_URL`, `NOTIFICATION_SERVICE_URL` | booking | `http://localhost:8002` / `8003` / `8004` | other services, HTTP only |
 | `INVENTORY_TIMEOUT_SECONDS`, `PAYMENT_TIMEOUT_SECONDS` | booking | `3`, `10` | timeout per downstream call |
@@ -135,7 +204,7 @@ so a missing value stops the service at start-up instead of quietly using the wr
 
 Example: `HOLD_STRATEGY=naive python scripts/stack.py restart inventory-service`.
 
-## 5. Tests
+## 6. Tests
 
 ```bash
 python scripts/stack.py test        # unit + integration tests of every service (databases must be up)
@@ -154,9 +223,11 @@ source .venv/bin/activate           # tooling venv created by setup; Windows: .v
 python -m pytest tests/e2e -v
 ```
 
-## 6. Engineering challenge scripts
+## 7. Engineering challenge scripts
 
-With the stack running and the tooling venv active:
+With the host setup from section 3 running and the tooling venv active. The scripts also read each
+service's database on localhost:5441-5444 to check the results, and `docker-compose.yml` does not publish
+the databases, so they are meant for that setup:
 
 | Script | Challenge | What it shows |
 |---|---|---|
@@ -169,7 +240,7 @@ With the stack running and the tooling venv active:
 Each script prints its result and saves a timestamped copy under `evidence/`. Useful options:
 `--capacity`, `--requests`, `--seats` (challenge 1) and `--skip-recovery` (challenge 3).
 
-## 7. Business rules
+## 8. Business rules
 
 | Id | Rule | Where |
 |---|---|---|
@@ -183,20 +254,24 @@ Each script prints its result and saves a timestamped copy under `evidence/`. Us
 
 [`docs/business-rules.md`](docs/business-rules.md) maps every rule to the code and to its tests.
 
-## 8. Repository layout
+## 9. Repository layout
 
 ```
-docker-compose.db.yml        four PostgreSQL containers, one per service
+docker-compose.yml           the whole application in containers: 4 databases + 5 services (Assignment 2)
+.env.example                 the database passwords to copy into .env (placeholders only)
+docker-compose.db.yml        only the four databases, for running the services on the host
 services/
-  booking-service/           app/{api,services,domain,repository,clients,core}, tests/, requirements.txt, .env.example
+  booking-service/           Dockerfile, app/{api,services,domain,repository,clients,core}, tests/,
+                             requirements.txt (+ requirements-dev.txt with pytest), .env.example
   inventory-service/         same layout
   payment-service/           same layout
   notification-service/      same layout
   mock-bank-gateway/         small stand-alone mock, no database
-scripts/                     stack.py, challenge scripts, export_openapi.py
+deploy/k8s/                  Kubernetes manifests for Minikube and the deploy / port-forward / watch scripts
+scripts/                     stack.py, challenge scripts, demo_flow.sh, trace.py, export_openapi.py
 tests/e2e/                   end-to-end test of the main transaction
-docs/                        report, diagrams (Mermaid source + PNG/SVG), OpenAPI specs, business rules
-evidence/                    one folder per challenge with outputs and a README linking files to claims
+docs/                        both reports, diagrams (Mermaid source + PNG/SVG), OpenAPI specs, business rules
+evidence/                    one folder per challenge (Assignment 1) and evidence/deployment (Assignment 2)
 ```
 
 Inside a service: `api/` is HTTP only (routes, request/response models), `services/` holds the use cases
@@ -205,7 +280,26 @@ tables and SQL, and `clients/` the HTTP clients for other services. `core/` is s
 (logging, correlation id, error format); it is copied into each service on purpose so that no service
 depends on a shared library.
 
-## 9. Troubleshooting
+## 10. Troubleshooting
+
+With Docker Compose:
+
+- **`docker: unknown command: docker compose`**: the Compose v2 plugin is missing. Docker Desktop has it;
+  with Homebrew (`brew install docker-compose`) add `"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]`
+  to `~/.docker/config.json`.
+- **`required variable BOOKING_DB_PASSWORD is missing a value`**: there is no `.env`; run `cp .env.example .env`.
+- **`port is already allocated`**: something else uses 8001-8004 or 8099, often the host setup from section 3
+  (`python scripts/stack.py stop`) or a minikube port-forward.
+- **A container keeps restarting or stays unhealthy**: `docker compose ps`, then `docker compose logs <service>`.
+  While a service waits for its database it logs which database it tries (password hidden) and the error.
+- **`password authentication failed` after changing a password in `.env`**: PostgreSQL only uses
+  `POSTGRES_PASSWORD` when it creates the database, the volume keeps the old one. Either start over with
+  `docker compose down -v`, or keep the data and change it inside the database:
+  `docker compose exec booking-db psql -U booking_svc -d booking_db -c "ALTER USER booking_svc PASSWORD '<new>'"`.
+- **Inside a container `localhost` is the container itself.** Never point a containerised service at
+  `localhost:<port>` (like the host `.env` files do); use the compose service name.
+
+With the host setup:
 
 - **A service does not become healthy**: look at `logs/<service>.log`. Most often the database is not up
   (`docker compose -f docker-compose.db.yml ps`) or a port is taken.
@@ -219,18 +313,12 @@ depends on a shared library.
 With a local PostgreSQL 14+, create the four databases and users once (as a superuser):
 
 ```sql
-CREATE USER booking_svc PASSWORD 'booking_dev_pw';           CREATE DATABASE booking_db OWNER booking_svc;
-CREATE USER inventory_svc PASSWORD 'inventory_dev_pw';       CREATE DATABASE inventory_db OWNER inventory_svc;
-CREATE USER payment_svc PASSWORD 'payment_dev_pw';           CREATE DATABASE payment_db OWNER payment_svc;
-CREATE USER notification_svc PASSWORD 'notification_dev_pw'; CREATE DATABASE notification_db OWNER notification_svc;
+-- use the passwords from your .env
+CREATE USER booking_svc PASSWORD '<booking password>';           CREATE DATABASE booking_db OWNER booking_svc;
+CREATE USER inventory_svc PASSWORD '<inventory password>';       CREATE DATABASE inventory_db OWNER inventory_svc;
+CREATE USER payment_svc PASSWORD '<payment password>';           CREATE DATABASE payment_db OWNER payment_svc;
+CREATE USER notification_svc PASSWORD '<notification password>'; CREATE DATABASE notification_db OWNER notification_svc;
 REVOKE CONNECT ON DATABASE booking_db, inventory_db, payment_db, notification_db FROM PUBLIC;
 ```
 
 Then change `DATABASE_URL` in each service's `.env` to port 5432.
-
-## 10. Notes for Assignment 2
-
-The services are already shaped for containers: configuration only through environment variables,
-`GET /health` checks the database, logs are JSON on stdout with a correlation id, the services keep no
-state in memory (except the mock bank), and start-up waits for the database and creates its tables.
-Assignment 2 adds a Dockerfile per service, a full compose file and Kubernetes manifests for Minikube.

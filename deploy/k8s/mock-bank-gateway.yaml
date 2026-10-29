@@ -1,0 +1,62 @@
+# the stand-in for the external bank: one replica, it keeps its state in memory
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mock-bank-gateway-config
+data:
+  LOG_LEVEL: INFO
+  GATEWAY_MODE: normal
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-bank-gateway
+  labels: {app: mock-bank-gateway}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: {app: mock-bank-gateway}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels: {app: mock-bank-gateway, tier: service}
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: mock-bank-gateway
+          image: tatkal/mock-bank-gateway:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8099}
+          envFrom:
+            - configMapRef: {name: mock-bank-gateway-config}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-bank-gateway
+  labels: {app: mock-bank-gateway}
+spec:
+  selector: {app: mock-bank-gateway}
+  ports:
+    - name: http
+      port: 8099
+      targetPort: http

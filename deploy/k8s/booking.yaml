@@ -1,0 +1,132 @@
+# booking_db: one PostgreSQL per service, data on a PersistentVolumeClaim
+apiVersion: v1
+kind: Service
+metadata:
+  name: booking-db
+  labels: {app: booking-db}
+spec:
+  clusterIP: None
+  selector: {app: booking-db}
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: booking-db
+  labels: {app: booking-db}
+spec:
+  serviceName: booking-db
+  replicas: 1
+  selector:
+    matchLabels: {app: booking-db}
+  template:
+    metadata:
+      labels: {app: booking-db, tier: database}
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args: ["-c", "max_connections=200", "-c", "log_min_messages=warning"]
+          env:
+            - {name: POSTGRES_DB, value: booking_db}
+            - {name: POSTGRES_USER, value: booking_svc}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: db-passwords, key: BOOKING_DB_PASSWORD}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports:
+            - {name: postgres, containerPort: 5432}
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: {storage: 1Gi}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: booking-service-config
+data:
+  LOG_LEVEL: INFO
+  INVENTORY_SERVICE_URL: http://inventory-service:8002
+  PAYMENT_SERVICE_URL: http://payment-service:8003
+  NOTIFICATION_SERVICE_URL: http://notification-service:8004
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booking-service
+  labels: {app: booking-service}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: {app: booking-service}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels: {app: booking-service, tier: service}
+    spec:
+      enableServiceLinks: false
+      initContainers:
+        # same idea as depends_on: service_healthy in docker-compose.yml
+        - name: wait-for-db
+          image: postgres:16-alpine
+          command: ["sh", "-c", "until pg_isready -h booking-db -p 5432 -t 2; do echo waiting for booking-db; sleep 2; done"]
+      containers:
+        - name: booking-service
+          image: tatkal/booking-service:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8001}
+          envFrom:
+            - configMapRef: {name: booking-service-config}
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: db-passwords, key: BOOKING_DB_PASSWORD}
+            - name: DATABASE_URL
+              value: postgresql+psycopg://booking_svc:$(DB_PASSWORD)@booking-db:5432/booking_db
+          startupProbe:
+            httpGet: {path: /health/live, port: http}
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /health/live, port: http}
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: booking-service
+  labels: {app: booking-service}
+spec:
+  selector: {app: booking-service}
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http

@@ -1,0 +1,130 @@
+# inventory_db: one PostgreSQL per service, data on a PersistentVolumeClaim
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-db
+  labels: {app: inventory-db}
+spec:
+  clusterIP: None
+  selector: {app: inventory-db}
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: inventory-db
+  labels: {app: inventory-db}
+spec:
+  serviceName: inventory-db
+  replicas: 1
+  selector:
+    matchLabels: {app: inventory-db}
+  template:
+    metadata:
+      labels: {app: inventory-db, tier: database}
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args: ["-c", "max_connections=200", "-c", "log_min_messages=warning"]
+          env:
+            - {name: POSTGRES_DB, value: inventory_db}
+            - {name: POSTGRES_USER, value: inventory_svc}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: db-passwords, key: INVENTORY_DB_PASSWORD}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports:
+            - {name: postgres, containerPort: 5432}
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: {storage: 1Gi}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-service-config
+data:
+  LOG_LEVEL: INFO
+  ADMIN_API_ENABLED: "true"   # demo only: the fault injector lives in one pod, so 1 replica
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  labels: {app: inventory-service}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: {app: inventory-service}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels: {app: inventory-service, tier: service}
+    spec:
+      enableServiceLinks: false
+      initContainers:
+        # same idea as depends_on: service_healthy in docker-compose.yml
+        - name: wait-for-db
+          image: postgres:16-alpine
+          command: ["sh", "-c", "until pg_isready -h inventory-db -p 5432 -t 2; do echo waiting for inventory-db; sleep 2; done"]
+      containers:
+        - name: inventory-service
+          image: tatkal/inventory-service:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8002}
+          envFrom:
+            - configMapRef: {name: inventory-service-config}
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: db-passwords, key: INVENTORY_DB_PASSWORD}
+            - name: DATABASE_URL
+              value: postgresql+psycopg://inventory_svc:$(DB_PASSWORD)@inventory-db:5432/inventory_db
+          startupProbe:
+            httpGet: {path: /health/live, port: http}
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /health/live, port: http}
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-service
+  labels: {app: inventory-service}
+spec:
+  selector: {app: inventory-service}
+  ports:
+    - name: http
+      port: 8002
+      targetPort: http

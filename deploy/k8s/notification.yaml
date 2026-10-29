@@ -1,0 +1,130 @@
+# notification_db: one PostgreSQL per service, data on a PersistentVolumeClaim
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-db
+  labels: {app: notification-db}
+spec:
+  clusterIP: None
+  selector: {app: notification-db}
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: notification-db
+  labels: {app: notification-db}
+spec:
+  serviceName: notification-db
+  replicas: 1
+  selector:
+    matchLabels: {app: notification-db}
+  template:
+    metadata:
+      labels: {app: notification-db, tier: database}
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args: ["-c", "max_connections=200", "-c", "log_min_messages=warning"]
+          env:
+            - {name: POSTGRES_DB, value: notification_db}
+            - {name: POSTGRES_USER, value: notification_svc}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: db-passwords, key: NOTIFICATION_DB_PASSWORD}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports:
+            - {name: postgres, containerPort: 5432}
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: {storage: 1Gi}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-service-config
+data:
+  LOG_LEVEL: INFO
+  ADMIN_API_ENABLED: "true"   # demo only
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  labels: {app: notification-service}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: {app: notification-service}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels: {app: notification-service, tier: service}
+    spec:
+      enableServiceLinks: false
+      initContainers:
+        # same idea as depends_on: service_healthy in docker-compose.yml
+        - name: wait-for-db
+          image: postgres:16-alpine
+          command: ["sh", "-c", "until pg_isready -h notification-db -p 5432 -t 2; do echo waiting for notification-db; sleep 2; done"]
+      containers:
+        - name: notification-service
+          image: tatkal/notification-service:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8004}
+          envFrom:
+            - configMapRef: {name: notification-service-config}
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: db-passwords, key: NOTIFICATION_DB_PASSWORD}
+            - name: DATABASE_URL
+              value: postgresql+psycopg://notification_svc:$(DB_PASSWORD)@notification-db:5432/notification_db
+          startupProbe:
+            httpGet: {path: /health/live, port: http}
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /health/live, port: http}
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  labels: {app: notification-service}
+spec:
+  selector: {app: notification-service}
+  ports:
+    - name: http
+      port: 8004
+      targetPort: http

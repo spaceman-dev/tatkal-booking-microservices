@@ -38,7 +38,8 @@ def check_services_up() -> None:
             except httpx.HTTPError:
                 missing.append(name)
     if missing:
-        sys.exit(f"Not running: {', '.join(missing)}. Start everything with: python scripts/stack.py start")
+        sys.exit(f"Not running: {', '.join(missing)}. Start everything with `docker compose up -d` "
+                 "(or python scripts/stack.py start)")
 
 
 # reading a service's own database (evidence only)
@@ -142,13 +143,58 @@ def git_commit() -> str:
 
 
 # logs
+# The services log JSON lines to stdout. Where those end up depends on how they run:
+#   files    scripts/stack.py writes logs/<service>.log
+#   compose  docker compose logs <service>
+#   k8s      kubectl logs (all pods of the service)
+# LOG_SOURCE picks one; by default it is files if stack.py is running, else compose if the
+# compose stack is up. For Kubernetes set LOG_SOURCE=k8s.
+K8S_NAMESPACE = os.environ.get("K8S_NAMESPACE", "tatkal")
+
+
+def _compose_is_up() -> bool:
+    try:
+        out = subprocess.run(["docker", "compose", "ps", "-q", "--status", "running", "booking-service"],
+                             cwd=ROOT, capture_output=True, text=True, timeout=20).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return bool(out.strip())
+
+
+def log_source() -> str:
+    """files, compose, k8s, or none when there is nowhere to read logs from."""
+    chosen = os.environ.get("LOG_SOURCE")
+    if chosen:
+        return chosen
+    if (ROOT / ".run" / "booking-service.pid").exists():
+        return "files"
+    if _compose_is_up():
+        return "compose"
+    return "none"
+
+
+def _raw_log_lines(service: str) -> list[str]:
+    source = log_source()
+    if source == "files":
+        path = ROOT / "logs" / f"{service}.log"
+        return path.read_text(errors="replace").splitlines() if path.exists() else []
+    if source == "compose":
+        cmd = ["docker", "compose", "logs", "--no-color", "--no-log-prefix", service]
+    elif source == "k8s":
+        cmd = ["kubectl", "logs", "-n", K8S_NAMESPACE, "-l", f"app={service}", "--tail=-1",
+               "--max-log-requests=20"]
+    else:
+        return []
+    try:
+        return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=60).stdout.splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+
 def log_lines(service: str, *, contains: str | None = None, correlation_id: str | None = None,
               since: datetime | None = None) -> list[dict]:
-    path = ROOT / "logs" / f"{service}.log"
-    if not path.exists():
-        return []
     found = []
-    for raw in path.read_text(errors="replace").splitlines():
+    for raw in _raw_log_lines(service):
         if not raw.startswith("{"):
             continue
         try:

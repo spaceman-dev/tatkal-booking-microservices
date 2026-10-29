@@ -25,7 +25,7 @@ booking_json() {  # $1 = name, $2 = payer
 
 step "1. all five services are up"
 show python scripts/stack.py status
-python3 scripts/stack.py status
+$PY scripts/stack.py status
 
 step "2. open a Tatkal quota of 2 seats in 3A on train 12951 for $D (inventory-service)"
 BODY="{\"train_no\":\"12951\",\"journey_date\":\"$D\",\"travel_class\":\"3A\",\"total_seats\":2,\"base_fare_paise\":249500}"

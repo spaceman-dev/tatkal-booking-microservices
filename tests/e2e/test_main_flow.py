@@ -1,7 +1,8 @@
 """End-to-end tests of the main transaction (booking a Tatkal ticket across booking, inventory,
 payment and notification) and its failure paths, all through the public APIs.
 
-Needs the stack running (python scripts/stack.py start), then: .venv/bin/python -m pytest tests/e2e -v
+Needs the system running (docker compose up -d, or python scripts/stack.py start), then:
+.venv/bin/python -m pytest tests/e2e -v
 """
 import time
 import uuid
@@ -13,10 +14,10 @@ from common import (
     INVENTORY,
     NOTIFICATION,
     PAYMENT,
-    ROOT,
     booking_body,
     fresh_run_date,
     log_lines,
+    log_source,
     open_quota,
 )
 
@@ -82,7 +83,7 @@ def test_book_pay_confirm_notify_happy_path(api):
     steps = api.get(f"{BOOKING}/api/v1/bookings/{booking['booking_id']}/saga").json()
     assert [s["step"] for s in steps] == ["HOLD_SEATS", "CHARGE_PAYMENT", "CONFIRM_SEATS"]
 
-    if (ROOT / "logs").exists():  # started through scripts/stack.py: the id must show up in every hop
+    if log_source() != "none":  # logs readable (files, docker compose or kubectl): the id must be in every hop
         for service in ("booking-service", "inventory-service", "payment-service", "mock-bank-gateway"):
             assert log_lines(service, correlation_id=correlation_id), f"no log line with the id in {service}"
 

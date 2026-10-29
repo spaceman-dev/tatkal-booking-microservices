@@ -16,7 +16,7 @@ def services_running():
             try:
                 client.get(f"{url}/health").raise_for_status()
             except httpx.HTTPError:
-                pytest.skip(f"{url} is not running - start the stack with: python scripts/stack.py start")
+                pytest.skip(f"{url} is not running - start it with docker compose up -d (or python scripts/stack.py start)")
     with httpx.Client(timeout=5) as client:
         client.put(f"{GATEWAY}/gateway/v1/admin/mode", json={"mode": "normal"})
         client.delete(f"{INVENTORY}/api/v1/admin/faults")

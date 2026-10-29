@@ -7,7 +7,7 @@
 import argparse
 import json
 
-from common import compact_log, log_lines
+from common import compact_log, log_lines, log_source
 
 SERVICES = ("booking-service", "inventory-service", "payment-service", "mock-bank-gateway", "notification-service")
 
@@ -23,7 +23,7 @@ def main() -> None:
     for entry in entries:
         print(json.dumps(entry) if args.json else compact_log(entry))
     if not entries:
-        print("no log lines with that correlation id (are the services running through scripts/stack.py?)")
+        print(f"no log lines with that correlation id (log source: {log_source()}, set LOG_SOURCE=files|compose|k8s)")
 
 
 if __name__ == "__main__":

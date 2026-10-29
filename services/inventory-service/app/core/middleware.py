@@ -9,7 +9,7 @@ from app.core.errors import PROBLEM_MEDIA_TYPE, problem
 
 log = logging.getLogger("app.access")
 
-_QUIET_PATHS = {"/health"}
+_QUIET_PATHS = {"/health", "/health/live"}
 
 
 class CorrelationIdMiddleware:

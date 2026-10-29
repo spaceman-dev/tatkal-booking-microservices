@@ -21,15 +21,20 @@ def build_engine(url: str, pool_size: int = 10, max_overflow: int = 20) -> Engin
 
 def wait_for_database(engine: Engine, attempts: int = 30, delay_seconds: float = 1.0) -> None:
     """Containers and pods start in any order, so keep trying for a while."""
+    # say where we connect and why it fails, otherwise a wrong host inside a container
+    # only shows up as "not reachable" (password hidden)
+    target = engine.url.render_as_string(hide_password=True)
     for attempt in range(1, attempts + 1):
         try:
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             return
-        except OperationalError:
-            log.warning("database not reachable yet (attempt %d/%d)", attempt, attempts)
+        except OperationalError as exc:
+            reason = str(exc.orig or exc).strip().splitlines()[0]
+            log.warning("database not reachable yet (attempt %d/%d)", attempt, attempts,
+                        extra={"database": target, "error": reason})
             time.sleep(delay_seconds)
-    raise RuntimeError("database is not reachable, giving up")
+    raise RuntimeError(f"database {target} is not reachable, giving up")
 
 
 def database_is_up(engine: Engine) -> bool:

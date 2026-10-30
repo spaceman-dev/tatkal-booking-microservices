@@ -44,8 +44,11 @@ def main() -> None:
                 result = f"CONNECTED ({tables} tables)"
                 allowed = who == whose
             except psycopg.OperationalError as exc:
-                reason = str(exc).strip().splitlines()[-1]
-                result = "refused: " + ("password authentication failed" if "password" in reason else reason[:40])
+                # for "localhost" psycopg may try ::1 and 127.0.0.1 and list every failure, so the
+                # password error is not always on the last line
+                reason = str(exc).strip()
+                result = "refused: " + ("password authentication failed" if "password authentication failed" in reason
+                                        else reason.splitlines()[-1][:40])
                 allowed = who != whose
             ok &= allowed
             row.append(result)

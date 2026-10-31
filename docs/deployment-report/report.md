@@ -16,7 +16,7 @@ subtitle: "Containerization and Deployment of the Microservices"
 
 Source code: <https://github.com/spaceman-dev/tatkal-booking-microservices> (Assignment 1 ends at the tag
 `assignment-1`, everything after it is Assignment 2)\
-Demo video: [video link]
+Demo video: <https://drive.google.com/drive/folders/1-ilHc5i5Y-p0t5t8ioswWVQGG0qH4uBT?usp=sharing>
 
 :::
 

@@ -15,7 +15,7 @@ subtitle: "Design and Development of a Microservices Application"
 | N Abhishek Reddy | 2023MT93400 | notification-service, end-to-end tests |
 
 Source code: <https://github.com/spaceman-dev/tatkal-booking-microservices>\
-Demo video and documents: [Google Drive link]
+Demo video and documents: <https://drive.google.com/drive/folders/1-ilHc5i5Y-p0t5t8ioswWVQGG0qH4uBT?usp=sharing>
 
 :::
 
@@ -517,8 +517,8 @@ and network partitions between a service and its database.
 # 10. Links
 
 Source code: <https://github.com/spaceman-dev/tatkal-booking-microservices>\
-Google Drive folder (demo video and documents): [Google Drive link]\
-Demo video: [video link]
+Google Drive folder (demo video and documents): <https://drive.google.com/drive/folders/1-ilHc5i5Y-p0t5t8ioswWVQGG0qH4uBT?usp=sharing>\
+Demo video: <https://drive.google.com/drive/folders/1-ilHc5i5Y-p0t5t8ioswWVQGG0qH4uBT?usp=sharing>
 
 # Appendix A - Contribution table {.newpage}
 
